@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -68,12 +69,27 @@ public class CsvTransactionImportService {
         if (file == null || file.isEmpty()) {
             throw new CsvImportException("CSV file is required and cannot be empty.");
         }
+        try {
+            return importCsvStream(file.getInputStream());
+        } catch (IOException e) {
+            throw new CsvImportException("Unable to read CSV file.");
+        }
+    }
 
-        List<TradeTransactionEntity> transactions = new ArrayList<>();
+    @Transactional
+    public CsvUploadResult importCsv(InputStream inputStream) {
+        if (inputStream == null) {
+            throw new CsvImportException("CSV input stream is required.");
+        }
+        return importCsvStream(inputStream);
+    }
+
+    private CsvUploadResult importCsvStream(InputStream inputStream) {
+        List<TradeTransactionEntity> parsedTransactions = new ArrayList<>();
         Map<String, AccountEntity> accountCache = new HashMap<>();
         Set<String> accountsAffected = new HashSet<>();
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8));
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
              CSVParser parser = new CSVParser(reader, CSVFormat.DEFAULT.builder()
                      .setHeader()
                      .setSkipHeaderRecord(true)
@@ -86,7 +102,7 @@ public class CsvTransactionImportService {
             for (CSVRecord record : parser) {
                 int row = (int) record.getRecordNumber() + 1;
                 TradeTransactionEntity entity = toEntity(record, row, accountCache);
-                transactions.add(entity);
+                parsedTransactions.add(entity);
                 accountsAffected.add(entity.getAccount().getName());
             }
 
@@ -94,17 +110,32 @@ public class CsvTransactionImportService {
             throw new CsvImportException("Unable to read CSV file.");
         }
 
-        if (transactions.isEmpty()) {
+        if (parsedTransactions.isEmpty()) {
             throw new CsvImportException("CSV file does not contain any transactions.");
         }
 
-        tradeTransactionRepository.saveAll(transactions);
+        List<TradeTransactionEntity> transactionsToPersist = parsedTransactions.stream()
+                .filter(transaction -> !tradeTransactionRepository.existsByAccountAndTradeDateAndSymbolAndTypeAndQuantityAndPriceAndFee(
+                        transaction.getAccount(),
+                        transaction.getTradeDate(),
+                        transaction.getSymbol(),
+                        transaction.getType(),
+                        transaction.getQuantity(),
+                        transaction.getPrice(),
+                        transaction.getFee()
+                ))
+                .toList();
+
+        if (!transactionsToPersist.isEmpty()) {
+            tradeTransactionRepository.saveAll(transactionsToPersist);
+        }
 
         List<String> sortedAccounts = accountsAffected.stream()
                 .sorted(Comparator.naturalOrder())
                 .toList();
 
-        return new CsvUploadResult(transactions.size(), sortedAccounts);
+        int skippedCount = parsedTransactions.size() - transactionsToPersist.size();
+        return new CsvUploadResult(transactionsToPersist.size(), skippedCount, sortedAccounts);
     }
 
     private void validateHeaders(Set<String> providedHeaders) {

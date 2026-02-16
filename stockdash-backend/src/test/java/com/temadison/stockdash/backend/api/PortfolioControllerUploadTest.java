@@ -2,16 +2,27 @@ package com.temadison.stockdash.backend.api;
 
 import com.temadison.stockdash.backend.repository.AccountRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Set;
+import java.util.TreeSet;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,25 +47,25 @@ class PortfolioControllerUploadTest {
     }
 
     @Test
-    void uploadTransactions_returnsSummaryAndPersistsData() throws Exception {
+    void uploadTransactions_returnsSummaryAndPersistsData_fromSampleCsvFile() throws Exception {
+        byte[] csvBytes = readResource("sample-transactions.csv");
+        SampleCsvExpectations expectations = parseExpectations(csvBytes);
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "transactions.csv",
+                "sample-transactions.csv",
                 "text/csv",
-                (
-                        "trade_date,account,symbol,type,quantity,price,fee\n" +
-                        "2026-02-14,IRA,AAPL,BUY,10,185.10,1.00\n" +
-                        "2026-02-15,IRA,MSFT,SELL,5,420.00,0.75\n"
-                ).getBytes()
+                csvBytes
         );
 
         mockMvc.perform(multipart("/api/portfolio/transactions/upload").file(file))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.importedCount").value(2))
-                .andExpect(jsonPath("$.accountsAffected[0]").value("IRA"));
+                .andExpect(jsonPath("$.importedCount").value(expectations.transactionCount()))
+                .andExpect(jsonPath("$.skippedCount").value(0))
+                .andExpect(jsonPath("$.accountsAffected", hasSize(expectations.sortedAccounts().size())))
+                .andExpect(jsonPath("$.accountsAffected", containsInAnyOrder(expectations.sortedAccounts().toArray())));
 
-        assertThat(tradeTransactionRepository.count()).isEqualTo(2);
-        assertThat(accountRepository.count()).isEqualTo(1);
+        assertThat(tradeTransactionRepository.count()).isEqualTo(expectations.transactionCount());
+        assertThat(accountRepository.count()).isEqualTo(expectations.sortedAccounts().size());
     }
 
     @Test
@@ -72,5 +83,34 @@ class PortfolioControllerUploadTest {
         mockMvc.perform(multipart("/api/portfolio/transactions/upload").file(file))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", containsString("type must be BUY or SELL")));
+    }
+
+    private byte[] readResource(String resourceName) throws IOException {
+        return new ClassPathResource(resourceName).getInputStream().readAllBytes();
+    }
+
+    private SampleCsvExpectations parseExpectations(byte[] csvBytes) throws IOException {
+        int transactionCount = 0;
+        Set<String> accounts = new TreeSet<>();
+
+        try (CSVParser parser = CSVParser.parse(
+                new String(csvBytes, StandardCharsets.UTF_8),
+                CSVFormat.DEFAULT.builder()
+                        .setHeader()
+                        .setSkipHeaderRecord(true)
+                        .setIgnoreHeaderCase(true)
+                        .setTrim(true)
+                        .build()
+        )) {
+            for (CSVRecord record : parser) {
+                transactionCount++;
+                accounts.add(record.get("account"));
+            }
+        }
+
+        return new SampleCsvExpectations(transactionCount, accounts);
+    }
+
+    private record SampleCsvExpectations(int transactionCount, Set<String> sortedAccounts) {
     }
 }

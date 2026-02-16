@@ -11,12 +11,19 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "trade_transactions")
+@Table(
+        name = "trade_transactions",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_trade_transactions_natural_key",
+                columnNames = {"account_id", "trade_date", "symbol", "type", "quantity", "price", "fee"}
+        )
+)
 public class TradeTransactionEntity {
 
     @Id
