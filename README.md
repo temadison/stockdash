@@ -20,8 +20,14 @@ This keeps things easy to learn while staying modular and scalable.
 ## What Works Right Now
 
 - `GET /api/health` -> basic health check
-- `GET /api/portfolio/daily-summary?date=YYYY-MM-DD` -> sample daily per-account values and positions
+- `GET /api/portfolio/daily-summary?date=YYYY-MM-DD` -> transaction-based daily account summary (as-of date)
 - `POST /api/portfolio/transactions/upload` -> upload buys/sells CSV (persists accounts + trades)
+
+Daily summary valuation currently uses:
+
+- Net quantity per symbol as of date (`BUY` minus `SELL`)
+- Last traded price for each symbol as of date
+- Cumulative fees subtracted from each symbol value
 
 ### CSV Format
 
@@ -51,6 +57,17 @@ Example upload:
 ```bash
 curl -X POST http://localhost:8080/api/portfolio/transactions/upload \
   -F "file=@transactions.csv"
+```
+
+## Optional Startup Seeding
+
+Seed import is off by default. To seed on app startup from classpath CSV:
+
+1. Put your CSV at `stockdash-backend/src/main/resources/seed/transactions.csv`
+2. Run one command:
+
+```bash
+./gradlew :stockdash-backend:bootRunSeed
 ```
 
 ## IntelliJ Step-By-Step

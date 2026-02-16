@@ -13,4 +13,13 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.register('bootRunSeed', org.springframework.boot.gradle.tasks.run.BootRun) {
+    group = 'application'
+    description = 'Runs the backend with seed profile enabled.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.temadison.stockdash.backend.StockDashboardApplication'
+    args '--spring.profiles.active=seed'
 }
