@@ -51,8 +51,9 @@ async function loadSummary() {
     for (const snapshot of data) {
       const card = document.createElement("article");
       card.className = "account";
+      const accountUrl = `/performance.html?account=${encodeURIComponent(snapshot.accountName)}`;
       card.innerHTML = `
-        <h3>${snapshot.accountName}</h3>
+        <h3><a class="account-link" href="${accountUrl}" target="_blank" rel="noreferrer">${snapshot.accountName}</a></h3>
         <div class="total">${money.format(snapshot.totalValue)}</div>
         <table>
           <thead>
@@ -64,8 +65,9 @@ async function loadSummary() {
       const tbody = card.querySelector("tbody");
       for (const p of snapshot.positions) {
         const row = document.createElement("tr");
+        const historyUrl = `/history.html?symbol=${encodeURIComponent(p.symbol)}`;
         row.innerHTML = `
-          <td>${p.symbol}</td>
+          <td><a href="${historyUrl}" target="_blank" rel="noreferrer" class="symbol-link">${p.symbol}</a></td>
           <td class="num">${p.quantity}</td>
           <td class="num">${money.format(p.currentPrice)}</td>
           <td class="num">${money.format(p.marketValue)}</td>

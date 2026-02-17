@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account Performance</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<main class="shell">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">Account Performance</p>
+        <h2 id="perf-title">Loading...</h2>
+      </div>
+      <a class="btn" href="/" target="_self">Back</a>
+    </div>
+
+    <div class="inline" style="margin-top: 8px;">
+      <label for="perf-start">Start</label>
+      <input id="perf-start" type="date">
+      <label for="perf-end">End</label>
+      <input id="perf-end" type="date">
+      <button id="load-performance" class="btn">Load Chart</button>
+    </div>
+
+    <div id="perf-meta" class="meta"></div>
+    <div id="perf-legend" class="legend"></div>
+    <div class="chart-wrap">
+      <canvas id="performance-chart" aria-label="Account stock performance chart"></canvas>
+    </div>
+  </section>
+</main>
+<script src="/performance.js"></script>
+</body>
+</html>

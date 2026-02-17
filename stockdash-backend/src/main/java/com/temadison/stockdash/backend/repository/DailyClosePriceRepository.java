@@ -11,6 +11,14 @@ public interface DailyClosePriceRepository extends JpaRepository<DailyClosePrice
     List<DailyClosePriceEntity> findBySymbolAndPriceDateAfter(String symbol, LocalDate priceDate);
 
     List<DailyClosePriceEntity> findBySymbolOrderByPriceDateAsc(String symbol);
+    List<DailyClosePriceEntity> findBySymbolOrderByPriceDateDesc(String symbol);
+    List<DailyClosePriceEntity> findBySymbolAndPriceDateGreaterThanEqualAndPriceDateLessThanEqualOrderByPriceDateDesc(
+            String symbol,
+            LocalDate startDate,
+            LocalDate endDate
+    );
+    List<DailyClosePriceEntity> findBySymbolAndPriceDateGreaterThanEqualOrderByPriceDateDesc(String symbol, LocalDate startDate);
+    List<DailyClosePriceEntity> findBySymbolAndPriceDateLessThanEqualOrderByPriceDateDesc(String symbol, LocalDate endDate);
 
     Optional<DailyClosePriceEntity> findTopBySymbolOrderByPriceDateDesc(String symbol);
 
