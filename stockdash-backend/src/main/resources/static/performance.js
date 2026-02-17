@@ -134,6 +134,8 @@ function drawPerformanceChart(points) {
 
 async function loadPerformance() {
   const account = getAccountParam();
+  const explicitStart = Boolean(perfStart.value);
+  const explicitEnd = Boolean(perfEnd.value);
   const params = new URLSearchParams();
   params.set("account", account);
   if (perfStart.value) params.set("startDate", perfStart.value);
@@ -154,7 +156,13 @@ async function loadPerformance() {
       ctx.clearRect(0, 0, perfCanvas.clientWidth, perfCanvas.clientHeight);
       return;
     }
-    perfMeta.textContent = `${data.length} day(s) shown`;
+    if (!explicitStart) {
+      perfStart.value = data[0].date;
+    }
+    if (!explicitEnd) {
+      perfEnd.value = data[data.length - 1].date;
+    }
+    perfMeta.textContent = `${data.length} day(s) shown: ${formatDateLabel(data[0].date)} to ${formatDateLabel(data[data.length - 1].date)}`;
     drawPerformanceChart(data);
   } catch (err) {
     perfMeta.textContent = `Error: ${err.message}`;
@@ -169,7 +177,6 @@ window.addEventListener("resize", () => {
 
 const account = getAccountParam();
 titleEl.textContent = account === "TOTAL" ? "Total Portfolio" : `${account} Performance`;
-perfEnd.value = todayIso();
 loadBtn.addEventListener("click", loadPerformance);
 
 void loadPerformance();
