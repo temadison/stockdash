@@ -4,6 +4,7 @@ import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
 import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.model.PortfolioSnapshot;
 import com.temadison.stockdash.backend.model.PositionValue;
+import com.temadison.stockdash.backend.pricing.MarketPriceService;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,14 +17,20 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class PortfolioSummaryService {
 
     private final TradeTransactionRepository tradeTransactionRepository;
+    private final MarketPriceService marketPriceService;
 
-    public PortfolioSummaryService(TradeTransactionRepository tradeTransactionRepository) {
+    public PortfolioSummaryService(
+            TradeTransactionRepository tradeTransactionRepository,
+            MarketPriceService marketPriceService
+    ) {
         this.tradeTransactionRepository = tradeTransactionRepository;
+        this.marketPriceService = marketPriceService;
     }
 
     @Transactional(readOnly = true)
@@ -48,14 +55,21 @@ public class PortfolioSummaryService {
 
         List<PortfolioSnapshot> snapshots = new ArrayList<>();
         for (Map.Entry<String, Map<String, PositionAccumulator>> accountEntry : byAccount.entrySet()) {
+            Map<String, BigDecimal> closePriceBySymbol = new HashMap<>();
             List<PositionValue> positions = accountEntry.getValue().entrySet().stream()
                     .map(entry -> {
                         PositionAccumulator acc = entry.getValue();
                         if (acc.netQuantity.compareTo(BigDecimal.ZERO) <= 0) {
                             return null;
                         }
+
+                        BigDecimal closePrice = closePriceBySymbol.computeIfAbsent(entry.getKey(), symbol -> {
+                            Optional<BigDecimal> marketClose = marketPriceService.getClosePriceOnOrBefore(symbol, asOfDate);
+                            return marketClose.orElse(acc.lastKnownPrice);
+                        });
+
                         BigDecimal positionValue = acc.netQuantity
-                                .multiply(acc.lastKnownPrice)
+                                .multiply(closePrice)
                                 .subtract(acc.totalFees)
                                 .setScale(2, RoundingMode.HALF_UP);
                         return new PositionValue(entry.getKey(), positionValue);
