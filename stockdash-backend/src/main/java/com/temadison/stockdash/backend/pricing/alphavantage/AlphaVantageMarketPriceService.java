@@ -35,10 +35,15 @@ public class AlphaVantageMarketPriceService implements MarketPriceService {
     private final PricingProperties pricingProperties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final AlphaVantageRequestLimiter requestLimiter;
     private final Map<PriceLookupKey, Optional<BigDecimal>> closePriceCache;
 
-    public AlphaVantageMarketPriceService(PricingProperties pricingProperties) {
+    public AlphaVantageMarketPriceService(
+            PricingProperties pricingProperties,
+            AlphaVantageRequestLimiter requestLimiter
+    ) {
         this.pricingProperties = pricingProperties;
+        this.requestLimiter = requestLimiter;
         this.objectMapper = new ObjectMapper();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
@@ -76,6 +81,7 @@ public class AlphaVantageMarketPriceService implements MarketPriceService {
                 .build();
 
         try {
+            requestLimiter.awaitTurn();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
                 log.warn("Price API request failed with HTTP {} for symbol {}; falling back to last known trade price.", response.statusCode(), symbol);

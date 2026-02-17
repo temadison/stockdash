@@ -7,7 +7,7 @@ Initial modular baseline for a stock dashboard that tracks multiple accounts ove
 - Backend: Java 21 + Spring Boot (REST API)
 - Build: Gradle multi-module
 - Data (now): in-memory sample data
-- Data (next): PostgreSQL for trades + daily valuations
+- Data: H2 by default, MySQL profile available
 - Frontend (next): separate module (`stockdash-frontend`) to add a lightweight UI (React, or server-rendered if you prefer)
 
 This keeps things easy to learn while staying modular and scalable.
@@ -22,6 +22,15 @@ This keeps things easy to learn while staying modular and scalable.
 - `GET /api/health` -> basic health check
 - `GET /api/portfolio/daily-summary?date=YYYY-MM-DD` -> transaction-based daily account summary (as-of date)
 - `POST /api/portfolio/transactions/upload` -> upload buys/sells CSV (persists accounts + trades)
+- `POST /api/portfolio/prices/sync` -> pull/store daily closes for a `stocks` array (stores only dates after each symbol's first `BUY` trade date)
+
+Example sync request:
+
+```bash
+curl -X POST http://localhost:8080/api/portfolio/prices/sync \
+  -H "Content-Type: application/json" \
+  -d '{"stocks":["AAPL","MSFT","ASML"]}'
+```
 
 Daily summary valuation currently uses:
 
@@ -65,6 +74,28 @@ Example upload:
 ```bash
 curl -X POST http://localhost:8080/api/portfolio/transactions/upload \
   -F "file=@transactions.csv"
+```
+
+### Run With MySQL
+
+Start MySQL (Homebrew on macOS):
+
+```bash
+brew services start mysql
+```
+
+Set credentials (optional if using defaults):
+
+```bash
+export STOCKDASH_DB_URL="jdbc:mysql://localhost:3306/stockdash?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+export STOCKDASH_DB_USERNAME="root"
+export STOCKDASH_DB_PASSWORD=""
+```
+
+Run backend with MySQL profile:
+
+```bash
+./gradlew :stockdash-backend:bootRunMysql
 ```
 
 ## Optional Startup Seeding

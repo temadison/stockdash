@@ -10,6 +10,7 @@ dependencies {
     implementation 'org.apache.commons:commons-csv:1.10.0'
 
     runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'com.mysql:mysql-connector-j'
     runtimeOnly 'org.postgresql:postgresql'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -22,4 +23,12 @@ tasks.register('bootRunSeed', org.springframework.boot.gradle.tasks.run.BootRun)
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.temadison.stockdash.backend.StockDashboardApplication'
     args '--spring.profiles.active=seed'
+}
+
+tasks.register('bootRunMysql', org.springframework.boot.gradle.tasks.run.BootRun) {
+    group = 'application'
+    description = 'Runs the backend with mysql profile enabled.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.temadison.stockdash.backend.StockDashboardApplication'
+    args '--spring.profiles.active=mysql'
 }
