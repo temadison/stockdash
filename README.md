@@ -76,6 +76,17 @@ curl -X POST http://localhost:8080/api/portfolio/transactions/upload \
   -F "file=@transactions.csv"
 ```
 
+### Dev Auto-Restart (No More Ctrl-C Loops)
+
+DevTools is enabled for the backend module. Keep one `bootRun` process running:
+
+```bash
+./gradlew :stockdash-backend:bootRun
+```
+
+Then edit and save backend files; Spring Boot restarts automatically.
+For static frontend files (`static/*.html`, `static/*.js`, `static/*.css`), browser refresh is usually enough.
+
 ### Run With MySQL
 
 Start MySQL (Homebrew on macOS):
