@@ -5,6 +5,7 @@ import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
 import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.exception.CsvImportException;
 import com.temadison.stockdash.backend.model.CsvUploadResult;
+import com.temadison.stockdash.backend.pricing.SymbolNormalizer;
 import com.temadison.stockdash.backend.repository.AccountRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.apache.commons.csv.CSVFormat;
@@ -159,7 +160,7 @@ public class CsvTransactionImportService {
         TradeTransactionEntity entity = new TradeTransactionEntity();
         entity.setAccount(account);
         entity.setTradeDate(parseDate(getRequiredValue(record, HEADER_TRADE_DATE, row), row));
-        entity.setSymbol(getRequiredValue(record, HEADER_SYMBOL, row).toUpperCase(Locale.US));
+        entity.setSymbol(SymbolNormalizer.normalize(getRequiredValue(record, HEADER_SYMBOL, row)));
         entity.setType(parseType(getRequiredValue(record, HEADER_TYPE, row), row));
         entity.setQuantity(parsePositiveDecimal(getRequiredValue(record, HEADER_QUANTITY, row), row, HEADER_QUANTITY));
         entity.setPrice(parseNonNegativeDecimal(getRequiredValue(record, HEADER_PRICE, row), row, HEADER_PRICE));

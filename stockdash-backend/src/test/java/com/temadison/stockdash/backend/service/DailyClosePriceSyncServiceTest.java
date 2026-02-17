@@ -2,6 +2,8 @@ package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.model.PriceSyncResult;
 import com.temadison.stockdash.backend.pricing.alphavantage.AlphaVantageDailySeriesClient;
+import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchResult;
+import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchStatus;
 import com.temadison.stockdash.backend.repository.AccountRepository;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
@@ -63,17 +65,17 @@ class DailyClosePriceSyncServiceTest {
         );
         csvTransactionImportService.importCsv(file);
 
-        given(alphaVantageDailySeriesClient.fetchDailyCloseSeries("AAPL")).willReturn(Map.of(
+        given(alphaVantageDailySeriesClient.fetchDailyCloseSeries("AAPL")).willReturn(new SeriesFetchResult(Map.of(
                 LocalDate.of(2025, 12, 31), new BigDecimal("99.00"),
                 LocalDate.of(2026, 1, 1), new BigDecimal("100.00"),
                 LocalDate.of(2026, 1, 2), new BigDecimal("101.00"),
                 LocalDate.of(2026, 1, 9), new BigDecimal("109.00")
-        ));
-        given(alphaVantageDailySeriesClient.fetchDailyCloseSeries("MSFT")).willReturn(Map.of(
+        ), SeriesFetchStatus.SUCCESS));
+        given(alphaVantageDailySeriesClient.fetchDailyCloseSeries("MSFT")).willReturn(new SeriesFetchResult(Map.of(
                 LocalDate.of(2026, 1, 4), new BigDecimal("198.00"),
                 LocalDate.of(2026, 1, 5), new BigDecimal("200.00"),
                 LocalDate.of(2026, 1, 6), new BigDecimal("202.00")
-        ));
+        ), SeriesFetchStatus.SUCCESS));
 
         PriceSyncResult first = dailyClosePriceSyncService.syncForStocks(List.of("aapl", "MSFT", "GOOG"));
         PriceSyncResult second = dailyClosePriceSyncService.syncForStocks(List.of("AAPL", "MSFT"));
@@ -84,12 +86,17 @@ class DailyClosePriceSyncServiceTest {
         assertThat(first.storedBySymbol()).hasSize(2);
         assertThat(first.storedBySymbol()).containsEntry("AAPL", 2);
         assertThat(first.storedBySymbol()).containsEntry("MSFT", 1);
+        assertThat(first.statusBySymbol()).containsEntry("AAPL", "stored");
+        assertThat(first.statusBySymbol()).containsEntry("MSFT", "stored");
+        assertThat(first.statusBySymbol()).containsEntry("GOOG", "no_purchase_history");
         assertThat(first.skippedSymbols()).containsExactly("GOOG");
 
         assertThat(second.pricesStored()).isZero();
         assertThat(second.storedBySymbol()).hasSize(2);
         assertThat(second.storedBySymbol()).containsEntry("AAPL", 0);
         assertThat(second.storedBySymbol()).containsEntry("MSFT", 0);
+        assertThat(second.statusBySymbol()).containsEntry("AAPL", "no_new_rows");
+        assertThat(second.statusBySymbol()).containsEntry("MSFT", "no_new_rows");
 
         assertThat(dailyClosePriceRepository.findBySymbolOrderByPriceDateAsc("AAPL"))
                 .extracting(price -> price.getPriceDate().toString())

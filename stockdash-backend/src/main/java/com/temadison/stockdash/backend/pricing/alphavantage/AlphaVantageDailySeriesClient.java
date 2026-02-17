@@ -48,9 +48,9 @@ public class AlphaVantageDailySeriesClient {
                 .build();
     }
 
-    public Map<LocalDate, BigDecimal> fetchDailyCloseSeries(String symbol) {
+    public SeriesFetchResult fetchDailyCloseSeries(String symbol) {
         if (!StringUtils.hasText(pricingProperties.alphaVantageApiKey())) {
-            return Map.of();
+            return new SeriesFetchResult(Map.of(), SeriesFetchStatus.NO_DATA);
         }
 
         String baseUrl = StringUtils.hasText(pricingProperties.alphaVantageBaseUrl())
@@ -76,25 +76,25 @@ public class AlphaVantageDailySeriesClient {
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() >= 400) {
                     log.warn("Price series API request failed with HTTP {} for symbol {}.", response.statusCode(), symbol);
-                    return Map.of();
+                    return new SeriesFetchResult(Map.of(), SeriesFetchStatus.API_ERROR);
                 }
 
                 SeriesResponse seriesResponse = extractSeries(response.body(), symbol);
                 if (!seriesResponse.retryableRateLimit() || attempt == MAX_ATTEMPTS) {
-                    return seriesResponse.series();
+                    return new SeriesFetchResult(seriesResponse.series(), seriesResponse.status());
                 }
                 Thread.sleep(RETRY_BACKOFF_MS * attempt);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 log.warn("Price series request interrupted for symbol {}.", symbol, e);
-                return Map.of();
+                return new SeriesFetchResult(Map.of(), SeriesFetchStatus.API_ERROR);
             } catch (IOException e) {
                 log.warn("Unable to fetch price series for symbol {}.", symbol, e);
-                return Map.of();
+                return new SeriesFetchResult(Map.of(), SeriesFetchStatus.API_ERROR);
             }
         }
 
-        return Map.of();
+        return new SeriesFetchResult(Map.of(), SeriesFetchStatus.RATE_LIMITED);
     }
 
     private SeriesResponse extractSeries(String payload, String symbol) {
@@ -102,20 +102,24 @@ public class AlphaVantageDailySeriesClient {
             JsonNode root = objectMapper.readTree(payload);
             if (root.has("Error Message")) {
                 log.warn("Price series API returned error for symbol {}: {}.", symbol, root.path("Error Message").asText());
-                return new SeriesResponse(Map.of(), false);
+                String message = root.path("Error Message").asText();
+                if (message.toLowerCase().contains("invalid api call")) {
+                    return new SeriesResponse(Map.of(), false, SeriesFetchStatus.INVALID_SYMBOL);
+                }
+                return new SeriesResponse(Map.of(), false, SeriesFetchStatus.API_ERROR);
             }
             if (root.has("Note")) {
                 log.warn("Price series API rate limit reached for symbol {}: {}.", symbol, root.path("Note").asText());
-                return new SeriesResponse(Map.of(), true);
+                return new SeriesResponse(Map.of(), true, SeriesFetchStatus.RATE_LIMITED);
             }
             if (root.has("Information")) {
                 log.warn("Price series API returned info for symbol {}: {}.", symbol, root.path("Information").asText());
-                return new SeriesResponse(Map.of(), true);
+                return new SeriesResponse(Map.of(), true, SeriesFetchStatus.RATE_LIMITED);
             }
 
             JsonNode dailySeries = root.path(TIME_SERIES_KEY);
             if (dailySeries.isMissingNode() || !dailySeries.isObject()) {
-                return new SeriesResponse(Map.of(), false);
+                return new SeriesResponse(Map.of(), false, SeriesFetchStatus.NO_DATA);
             }
 
             Map<LocalDate, BigDecimal> result = new HashMap<>();
@@ -129,13 +133,13 @@ public class AlphaVantageDailySeriesClient {
                 }
                 result.put(date, new BigDecimal(closeNode.asText()));
             }
-            return new SeriesResponse(result, false);
+            return new SeriesResponse(result, false, SeriesFetchStatus.SUCCESS);
         } catch (IOException e) {
             log.warn("Unable to parse price series response for symbol {}.", symbol, e);
-            return new SeriesResponse(Map.of(), false);
+            return new SeriesResponse(Map.of(), false, SeriesFetchStatus.API_ERROR);
         }
     }
 
-    private record SeriesResponse(Map<LocalDate, BigDecimal> series, boolean retryableRateLimit) {
+    private record SeriesResponse(Map<LocalDate, BigDecimal> series, boolean retryableRateLimit, SeriesFetchStatus status) {
     }
 }
