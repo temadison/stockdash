@@ -69,7 +69,12 @@ class PortfolioSummaryServiceTest {
         PortfolioSnapshot snapshotBefore = beforeSellAndMsft.getFirst();
         assertThat(snapshotBefore.accountName()).isEqualTo("IRA");
         assertThat(snapshotBefore.totalValue()).isEqualByComparingTo(new BigDecimal("1798.00"));
-        assertThat(snapshotBefore.positions()).containsExactly(new PositionValue("AAPL", new BigDecimal("1798.00")));
+        assertThat(snapshotBefore.positions()).containsExactly(new PositionValue(
+                "AAPL",
+                15L,
+                new BigDecimal("120.000000"),
+                new BigDecimal("1798.00")
+        ));
 
         List<PortfolioSnapshot> afterAllTrades = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 15));
         assertThat(afterAllTrades).hasSize(1);
@@ -77,8 +82,8 @@ class PortfolioSummaryServiceTest {
         PortfolioSnapshot snapshotAfter = afterAllTrades.getFirst();
         assertThat(snapshotAfter.totalValue()).isEqualByComparingTo(new BigDecimal("1955.00"));
         assertThat(snapshotAfter.positions()).containsExactly(
-                new PositionValue("AAPL", new BigDecimal("1557.00")),
-                new PositionValue("MSFT", new BigDecimal("398.00"))
+                new PositionValue("AAPL", 12L, new BigDecimal("130.000000"), new BigDecimal("1557.00")),
+                new PositionValue("MSFT", 2L, new BigDecimal("200.000000"), new BigDecimal("398.00"))
         );
     }
 
@@ -104,7 +109,12 @@ class PortfolioSummaryServiceTest {
         PortfolioSnapshot snapshot = snapshots.getFirst();
 
         // 12 shares * market close 140 - total fees 3
-        assertThat(snapshot.positions()).containsExactly(new PositionValue("AAPL", new BigDecimal("1677.00")));
+        assertThat(snapshot.positions()).containsExactly(new PositionValue(
+                "AAPL",
+                12L,
+                new BigDecimal("140.00"),
+                new BigDecimal("1677.00")
+        ));
         assertThat(snapshot.totalValue()).isEqualByComparingTo(new BigDecimal("1677.00"));
     }
 
