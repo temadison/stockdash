@@ -2,19 +2,25 @@ package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.model.PortfolioSnapshot;
 import com.temadison.stockdash.backend.model.PositionValue;
+import com.temadison.stockdash.backend.pricing.MarketPriceService;
 import com.temadison.stockdash.backend.repository.AccountRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 
 @SpringBootTest
 class PortfolioSummaryServiceTest {
@@ -31,10 +37,14 @@ class PortfolioSummaryServiceTest {
     @Autowired
     private AccountRepository accountRepository;
 
+    @MockBean
+    private MarketPriceService marketPriceService;
+
     @BeforeEach
     void setUp() {
         tradeTransactionRepository.deleteAll();
         accountRepository.deleteAll();
+        given(marketPriceService.getClosePriceOnOrBefore(any(), any())).willReturn(Optional.empty());
     }
 
     @Test
@@ -70,6 +80,32 @@ class PortfolioSummaryServiceTest {
                 new PositionValue("AAPL", new BigDecimal("1557.00")),
                 new PositionValue("MSFT", new BigDecimal("398.00"))
         );
+    }
+
+    @Test
+    void dailySummary_usesMarketClosePriceWhenAvailable() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "summary-fixture.csv",
+                "text/csv",
+                (
+                        "trade_date,account,symbol,type,quantity,price,fee\n" +
+                        "2026-01-01,IRA,AAPL,BUY,10,100,1\n" +
+                        "2026-01-05,IRA,AAPL,BUY,5,120,1\n" +
+                        "2026-01-10,IRA,AAPL,SELL,3,130,1\n"
+                ).getBytes()
+        );
+        csvTransactionImportService.importCsv(file);
+
+        given(marketPriceService.getClosePriceOnOrBefore(eq("AAPL"), eq(LocalDate.of(2026, 1, 15))))
+                .willReturn(Optional.of(new BigDecimal("140.00")));
+
+        List<PortfolioSnapshot> snapshots = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 15));
+        PortfolioSnapshot snapshot = snapshots.getFirst();
+
+        // 12 shares * market close 140 - total fees 3
+        assertThat(snapshot.positions()).containsExactly(new PositionValue("AAPL", new BigDecimal("1677.00")));
+        assertThat(snapshot.totalValue()).isEqualByComparingTo(new BigDecimal("1677.00"));
     }
 
     @Test

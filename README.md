@@ -26,8 +26,16 @@ This keeps things easy to learn while staying modular and scalable.
 Daily summary valuation currently uses:
 
 - Net quantity per symbol as of date (`BUY` minus `SELL`)
-- Last traded price for each symbol as of date
+- Market close price (Alpha Vantage) on or before the as-of date
 - Cumulative fees subtracted from each symbol value
+
+Configure pricing API key:
+
+```bash
+export STOCKDASH_PRICING_ALPHA_VANTAGE_API_KEY=your_api_key_here
+```
+
+If no API key is configured, the service falls back to each symbol's last trade price in your transaction history.
 
 ### CSV Format
 
