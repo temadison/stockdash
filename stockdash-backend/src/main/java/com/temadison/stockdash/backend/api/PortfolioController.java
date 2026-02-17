@@ -2,11 +2,15 @@ package com.temadison.stockdash.backend.api;
 
 import com.temadison.stockdash.backend.model.PortfolioSnapshot;
 import com.temadison.stockdash.backend.model.CsvUploadResult;
+import com.temadison.stockdash.backend.model.PriceSyncRequest;
+import com.temadison.stockdash.backend.model.PriceSyncResult;
 import com.temadison.stockdash.backend.service.CsvTransactionImportService;
+import com.temadison.stockdash.backend.service.DailyClosePriceSyncService;
 import com.temadison.stockdash.backend.service.PortfolioSummaryService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,13 +25,16 @@ public class PortfolioController {
 
     private final PortfolioSummaryService portfolioSummaryService;
     private final CsvTransactionImportService csvTransactionImportService;
+    private final DailyClosePriceSyncService dailyClosePriceSyncService;
 
     public PortfolioController(
             PortfolioSummaryService portfolioSummaryService,
-            CsvTransactionImportService csvTransactionImportService
+            CsvTransactionImportService csvTransactionImportService,
+            DailyClosePriceSyncService dailyClosePriceSyncService
     ) {
         this.portfolioSummaryService = portfolioSummaryService;
         this.csvTransactionImportService = csvTransactionImportService;
+        this.dailyClosePriceSyncService = dailyClosePriceSyncService;
     }
 
     @GetMapping("/daily-summary")
@@ -43,5 +50,10 @@ public class PortfolioController {
     @PostMapping("/transactions/upload")
     public CsvUploadResult uploadTransactions(@RequestParam("file") MultipartFile file) {
         return csvTransactionImportService.importCsv(file);
+    }
+
+    @PostMapping("/prices/sync")
+    public PriceSyncResult syncDailyClosePrices(@RequestBody PriceSyncRequest request) {
+        return dailyClosePriceSyncService.syncForStocks(request.stocks());
     }
 }
