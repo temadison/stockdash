@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock History</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<main class="shell">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">Historical Prices</p>
+        <h2 id="history-title">Symbol</h2>
+      </div>
+      <a class="btn" href="/" target="_self">Back</a>
+    </div>
+    <div id="history-meta" class="meta"></div>
+    <div id="history-chart-wrap" class="chart-wrap">
+      <canvas id="history-chart" aria-label="Historical price chart"></canvas>
+      <div id="chart-tooltip" class="chart-tooltip" hidden></div>
+    </div>
+  </section>
+</main>
+<script src="/history.js"></script>
+</body>
+</html>
