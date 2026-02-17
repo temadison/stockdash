@@ -4,7 +4,10 @@ import com.temadison.stockdash.backend.domain.DailyClosePriceEntity;
 import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
 import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.model.PriceSyncResult;
+import com.temadison.stockdash.backend.pricing.SymbolNormalizer;
 import com.temadison.stockdash.backend.pricing.alphavantage.AlphaVantageDailySeriesClient;
+import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchResult;
+import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchStatus;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.springframework.stereotype.Service;
@@ -42,6 +45,7 @@ public class DailyClosePriceSyncService {
         Map<String, LocalDate> firstBuyDateBySymbol = firstBuyDatesBySymbol(normalizedSymbols);
 
         Map<String, Integer> storedBySymbol = new LinkedHashMap<>();
+        Map<String, String> statusBySymbol = new LinkedHashMap<>();
         List<String> skippedSymbols = new ArrayList<>();
         int pricesStored = 0;
         int symbolsWithPurchases = 0;
@@ -50,6 +54,7 @@ public class DailyClosePriceSyncService {
             LocalDate firstBuyDate = firstBuyDateBySymbol.get(symbol);
             if (firstBuyDate == null) {
                 skippedSymbols.add(symbol);
+                statusBySymbol.put(symbol, "no_purchase_history");
                 continue;
             }
 
@@ -59,12 +64,15 @@ public class DailyClosePriceSyncService {
                     .orElse(null);
             if (latestStoredDate != null && !latestStoredDate.isBefore(LocalDate.now().minusDays(1))) {
                 storedBySymbol.put(symbol, 0);
+                statusBySymbol.put(symbol, "already_up_to_date");
                 continue;
             }
 
-            Map<LocalDate, BigDecimal> dailySeries = alphaVantageDailySeriesClient.fetchDailyCloseSeries(symbol);
+            SeriesFetchResult fetchResult = alphaVantageDailySeriesClient.fetchDailyCloseSeries(symbol);
+            Map<LocalDate, BigDecimal> dailySeries = fetchResult.series();
             if (dailySeries.isEmpty()) {
                 storedBySymbol.put(symbol, 0);
+                statusBySymbol.put(symbol, mapFetchStatus(fetchResult.status()));
                 continue;
             }
 
@@ -90,6 +98,7 @@ public class DailyClosePriceSyncService {
                 dailyClosePriceRepository.saveAll(toSave);
             }
             storedBySymbol.put(symbol, toSave.size());
+            statusBySymbol.put(symbol, toSave.isEmpty() ? "no_new_rows" : "stored");
             pricesStored += toSave.size();
         }
 
@@ -98,6 +107,7 @@ public class DailyClosePriceSyncService {
                 symbolsWithPurchases,
                 pricesStored,
                 storedBySymbol,
+                statusBySymbol,
                 skippedSymbols
         );
     }
@@ -112,7 +122,7 @@ public class DailyClosePriceSyncService {
             if (stock == null || stock.isBlank()) {
                 continue;
             }
-            normalized.add(stock.trim().toUpperCase());
+            normalized.add(SymbolNormalizer.normalize(stock));
         }
 
         if (normalized.isEmpty()) {
@@ -122,12 +132,27 @@ public class DailyClosePriceSyncService {
     }
 
     private Map<String, LocalDate> firstBuyDatesBySymbol(List<String> symbols) {
+        Set<String> lookupSymbols = new LinkedHashSet<>();
+        for (String symbol : symbols) {
+            lookupSymbols.addAll(SymbolNormalizer.lookupCandidatesForCanonical(symbol));
+        }
         List<TradeTransactionEntity> buys = tradeTransactionRepository
-                .findBySymbolInAndTypeOrderByTradeDateAscIdAsc(symbols, TransactionType.BUY);
+                .findBySymbolInAndTypeOrderByTradeDateAscIdAsc(new ArrayList<>(lookupSymbols), TransactionType.BUY);
         Map<String, LocalDate> firstBySymbol = new LinkedHashMap<>();
         for (TradeTransactionEntity buy : buys) {
-            firstBySymbol.putIfAbsent(buy.getSymbol(), buy.getTradeDate());
+            String canonicalSymbol = SymbolNormalizer.normalize(buy.getSymbol());
+            firstBySymbol.putIfAbsent(canonicalSymbol, buy.getTradeDate());
         }
         return firstBySymbol;
+    }
+
+    private String mapFetchStatus(SeriesFetchStatus status) {
+        return switch (status) {
+            case RATE_LIMITED -> "rate_limited";
+            case INVALID_SYMBOL -> "invalid_symbol";
+            case API_ERROR -> "api_error";
+            case NO_DATA -> "no_data";
+            case SUCCESS -> "no_data";
+        };
     }
 }
