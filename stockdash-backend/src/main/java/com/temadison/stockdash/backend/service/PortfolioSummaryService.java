@@ -5,6 +5,7 @@ import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.model.PortfolioSnapshot;
 import com.temadison.stockdash.backend.model.PositionValue;
 import com.temadison.stockdash.backend.pricing.MarketPriceService;
+import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,13 +24,16 @@ import java.util.Optional;
 public class PortfolioSummaryService {
 
     private final TradeTransactionRepository tradeTransactionRepository;
+    private final DailyClosePriceRepository dailyClosePriceRepository;
     private final MarketPriceService marketPriceService;
 
     public PortfolioSummaryService(
             TradeTransactionRepository tradeTransactionRepository,
+            DailyClosePriceRepository dailyClosePriceRepository,
             MarketPriceService marketPriceService
     ) {
         this.tradeTransactionRepository = tradeTransactionRepository;
+        this.dailyClosePriceRepository = dailyClosePriceRepository;
         this.marketPriceService = marketPriceService;
     }
 
@@ -64,6 +68,12 @@ public class PortfolioSummaryService {
                         }
 
                         BigDecimal closePrice = closePriceBySymbol.computeIfAbsent(entry.getKey(), symbol -> {
+                            Optional<BigDecimal> storedClose = dailyClosePriceRepository
+                                    .findTopBySymbolAndPriceDateLessThanEqualOrderByPriceDateDesc(symbol, asOfDate)
+                                    .map(price -> price.getClosePrice());
+                            if (storedClose.isPresent()) {
+                                return storedClose.get();
+                            }
                             Optional<BigDecimal> marketClose = marketPriceService.getClosePriceOnOrBefore(symbol, asOfDate);
                             return marketClose.orElse(acc.lastKnownPrice);
                         });
