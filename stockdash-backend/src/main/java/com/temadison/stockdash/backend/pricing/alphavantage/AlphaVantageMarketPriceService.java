@@ -19,9 +19,11 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AlphaVantageMarketPriceService implements MarketPriceService {
@@ -33,6 +35,7 @@ public class AlphaVantageMarketPriceService implements MarketPriceService {
     private final PricingProperties pricingProperties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final Map<PriceLookupKey, Optional<BigDecimal>> closePriceCache;
 
     public AlphaVantageMarketPriceService(PricingProperties pricingProperties) {
         this.pricingProperties = pricingProperties;
@@ -40,12 +43,18 @@ public class AlphaVantageMarketPriceService implements MarketPriceService {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
+        this.closePriceCache = new ConcurrentHashMap<>();
     }
 
     @Override
     public Optional<BigDecimal> getClosePriceOnOrBefore(String symbol, LocalDate asOfDate) {
         if (!StringUtils.hasText(pricingProperties.alphaVantageApiKey())) {
             return Optional.empty();
+        }
+        PriceLookupKey cacheKey = new PriceLookupKey(symbol, asOfDate);
+        Optional<BigDecimal> cachedClose = closePriceCache.get(cacheKey);
+        if (cachedClose != null) {
+            return cachedClose;
         }
 
         String baseUrl = StringUtils.hasText(pricingProperties.alphaVantageBaseUrl())
@@ -70,16 +79,24 @@ public class AlphaVantageMarketPriceService implements MarketPriceService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
                 log.warn("Price API request failed with HTTP {} for symbol {}; falling back to last known trade price.", response.statusCode(), symbol);
-                return Optional.empty();
+                Optional<BigDecimal> missing = Optional.empty();
+                closePriceCache.put(cacheKey, missing);
+                return missing;
             }
-            return extractClosePrice(response.body(), symbol, asOfDate);
+            Optional<BigDecimal> extractedClose = extractClosePrice(response.body(), symbol, asOfDate);
+            closePriceCache.put(cacheKey, extractedClose);
+            return extractedClose;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.warn("Price API request interrupted for symbol {}; falling back to last known trade price.", symbol, e);
-            return Optional.empty();
+            Optional<BigDecimal> missing = Optional.empty();
+            closePriceCache.put(cacheKey, missing);
+            return missing;
         } catch (IOException e) {
             log.warn("Unable to fetch market price for symbol {}; falling back to last known trade price.", symbol, e);
-            return Optional.empty();
+            Optional<BigDecimal> missing = Optional.empty();
+            closePriceCache.put(cacheKey, missing);
+            return missing;
         }
     }
 
@@ -135,5 +152,8 @@ public class AlphaVantageMarketPriceService implements MarketPriceService {
             log.warn("Unable to parse price API response for symbol {}; falling back to last known trade price.", symbol, e);
             return Optional.empty();
         }
+    }
+
+    private record PriceLookupKey(String symbol, LocalDate asOfDate) {
     }
 }

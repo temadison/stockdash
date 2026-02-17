@@ -53,9 +53,9 @@ public class PortfolioSummaryService {
             accumulator.totalFees = accumulator.totalFees.add(transaction.getFee());
         }
 
+        Map<String, BigDecimal> closePriceBySymbol = new HashMap<>();
         List<PortfolioSnapshot> snapshots = new ArrayList<>();
         for (Map.Entry<String, Map<String, PositionAccumulator>> accountEntry : byAccount.entrySet()) {
-            Map<String, BigDecimal> closePriceBySymbol = new HashMap<>();
             List<PositionValue> positions = accountEntry.getValue().entrySet().stream()
                     .map(entry -> {
                         PositionAccumulator acc = entry.getValue();
@@ -72,7 +72,7 @@ public class PortfolioSummaryService {
                                 .multiply(closePrice)
                                 .subtract(acc.totalFees)
                                 .setScale(2, RoundingMode.HALF_UP);
-                        return new PositionValue(entry.getKey(), positionValue);
+                        return new PositionValue(entry.getKey(), acc.netQuantity.longValueExact(), closePrice, positionValue);
                     })
                     .filter(position -> position != null)
                     .sorted(Comparator.comparing(PositionValue::symbol))
