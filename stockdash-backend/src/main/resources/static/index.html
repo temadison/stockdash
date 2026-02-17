@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StockDash</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<main class="shell">
+  <header class="hero">
+    <p class="eyebrow">Stock Dashboard</p>
+    <h1>Portfolio Control Room</h1>
+    <p class="subtitle">Track daily valuations, upload transactions, and sync close prices in one place.</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Daily Summary</h2>
+      <div class="inline">
+        <label for="summary-date">As of date</label>
+        <input id="summary-date" type="date">
+        <button id="load-summary" class="btn">Load</button>
+      </div>
+    </div>
+    <div id="summary-meta" class="meta"></div>
+    <div id="summary-grid" class="cards"></div>
+  </section>
+
+  <section class="panel split">
+    <div>
+      <h2>Upload Transactions CSV</h2>
+      <form id="upload-form" class="stack">
+        <input id="csv-file" type="file" accept=".csv,text/csv" required>
+        <button type="submit" class="btn">Upload</button>
+      </form>
+      <pre id="upload-result" class="code"></pre>
+    </div>
+
+    <div>
+      <h2>Sync Close Prices</h2>
+      <form id="sync-form" class="stack">
+        <label for="sync-stocks">Symbols (comma separated)</label>
+        <input id="sync-stocks" type="text" placeholder="AMD, AMAT, KLAC" required>
+        <button type="submit" class="btn">Sync</button>
+      </form>
+      <div id="sync-summary" class="meta"></div>
+      <div id="sync-table"></div>
+    </div>
+  </section>
+</main>
+
+<template id="position-row">
+  <tr>
+    <td data-k="symbol"></td>
+    <td data-k="quantity" class="num"></td>
+    <td data-k="currentPrice" class="num"></td>
+    <td data-k="marketValue" class="num"></td>
+  </tr>
+</template>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,9 +1,11 @@
 package com.temadison.stockdash.backend.service;
 
+import com.temadison.stockdash.backend.domain.DailyClosePriceEntity;
 import com.temadison.stockdash.backend.model.PortfolioSnapshot;
 import com.temadison.stockdash.backend.model.PositionValue;
 import com.temadison.stockdash.backend.pricing.MarketPriceService;
 import com.temadison.stockdash.backend.repository.AccountRepository;
+import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,11 +39,15 @@ class PortfolioSummaryServiceTest {
     @Autowired
     private AccountRepository accountRepository;
 
+    @Autowired
+    private DailyClosePriceRepository dailyClosePriceRepository;
+
     @MockBean
     private MarketPriceService marketPriceService;
 
     @BeforeEach
     void setUp() {
+        dailyClosePriceRepository.deleteAll();
         tradeTransactionRepository.deleteAll();
         accountRepository.deleteAll();
         given(marketPriceService.getClosePriceOnOrBefore(any(), any())).willReturn(Optional.empty());
@@ -122,5 +128,45 @@ class PortfolioSummaryServiceTest {
     void dailySummary_returnsEmptyWhenNoTransactionsExist() {
         List<PortfolioSnapshot> snapshots = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 2, 16));
         assertThat(snapshots).isEmpty();
+    }
+
+    @Test
+    void dailySummary_usesStoredClosePriceHistoryForSelectedDate() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "summary-fixture.csv",
+                "text/csv",
+                (
+                        "trade_date,account,symbol,type,quantity,price,fee\n" +
+                                "2026-01-01,IRA,AAPL,BUY,10,100,1\n"
+                ).getBytes()
+        );
+        csvTransactionImportService.importCsv(file);
+
+        DailyClosePriceEntity jan2 = new DailyClosePriceEntity();
+        jan2.setSymbol("AAPL");
+        jan2.setPriceDate(LocalDate.of(2026, 1, 2));
+        jan2.setClosePrice(new BigDecimal("120.00"));
+        DailyClosePriceEntity jan5 = new DailyClosePriceEntity();
+        jan5.setSymbol("AAPL");
+        jan5.setPriceDate(LocalDate.of(2026, 1, 5));
+        jan5.setClosePrice(new BigDecimal("140.00"));
+        dailyClosePriceRepository.saveAll(List.of(jan2, jan5));
+
+        PortfolioSnapshot jan3 = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 3)).getFirst();
+        PortfolioSnapshot jan6 = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 6)).getFirst();
+
+        assertThat(jan3.positions()).containsExactly(new PositionValue(
+                "AAPL",
+                10L,
+                new BigDecimal("120.000000"),
+                new BigDecimal("1199.00")
+        ));
+        assertThat(jan6.positions()).containsExactly(new PositionValue(
+                "AAPL",
+                10L,
+                new BigDecimal("140.000000"),
+                new BigDecimal("1399.00")
+        ));
     }
 }
