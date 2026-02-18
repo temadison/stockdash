@@ -52,6 +52,9 @@ public class AlphaVantageDailySeriesClient {
         if (!StringUtils.hasText(pricingProperties.alphaVantageApiKey())) {
             return new SeriesFetchResult(Map.of(), SeriesFetchStatus.NO_DATA);
         }
+        if (requestLimiter.isDailyLimitReached()) {
+            return new SeriesFetchResult(Map.of(), SeriesFetchStatus.RATE_LIMITED);
+        }
 
         String baseUrl = StringUtils.hasText(pricingProperties.alphaVantageBaseUrl())
                 ? pricingProperties.alphaVantageBaseUrl()
@@ -109,12 +112,16 @@ public class AlphaVantageDailySeriesClient {
                 return new SeriesResponse(Map.of(), false, SeriesFetchStatus.API_ERROR);
             }
             if (root.has("Note")) {
-                log.warn("Price series API rate limit reached for symbol {}: {}.", symbol, root.path("Note").asText());
-                return new SeriesResponse(Map.of(), true, SeriesFetchStatus.RATE_LIMITED);
+                String message = root.path("Note").asText();
+                requestLimiter.recordRateLimitMessage(message);
+                log.warn("Price series API rate limit reached for symbol {}: {}.", symbol, message);
+                return new SeriesResponse(Map.of(), !requestLimiter.isDailyLimitReached(), SeriesFetchStatus.RATE_LIMITED);
             }
             if (root.has("Information")) {
-                log.warn("Price series API returned info for symbol {}: {}.", symbol, root.path("Information").asText());
-                return new SeriesResponse(Map.of(), true, SeriesFetchStatus.RATE_LIMITED);
+                String message = root.path("Information").asText();
+                requestLimiter.recordRateLimitMessage(message);
+                log.warn("Price series API returned info for symbol {}: {}.", symbol, message);
+                return new SeriesResponse(Map.of(), !requestLimiter.isDailyLimitReached(), SeriesFetchStatus.RATE_LIMITED);
             }
 
             JsonNode dailySeries = root.path(TIME_SERIES_KEY);
