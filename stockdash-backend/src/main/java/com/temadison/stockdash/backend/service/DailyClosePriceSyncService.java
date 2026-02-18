@@ -10,6 +10,8 @@ import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchResult;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchStatus;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,13 +23,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class DailyClosePriceSyncService {
 
+    private static final Logger log = LoggerFactory.getLogger(DailyClosePriceSyncService.class);
+
     private final TradeTransactionRepository tradeTransactionRepository;
     private final DailyClosePriceRepository dailyClosePriceRepository;
     private final AlphaVantageDailySeriesClient alphaVantageDailySeriesClient;
+    private final Map<String, Object> symbolSyncLocks = new ConcurrentHashMap<>();
 
     public DailyClosePriceSyncService(
             TradeTransactionRepository tradeTransactionRepository,
@@ -59,47 +65,51 @@ public class DailyClosePriceSyncService {
             }
 
             symbolsWithPurchases++;
-            LocalDate latestStoredDate = dailyClosePriceRepository.findTopBySymbolOrderByPriceDateDesc(symbol)
-                    .map(DailyClosePriceEntity::getPriceDate)
-                    .orElse(null);
-            if (latestStoredDate != null && !latestStoredDate.isBefore(LocalDate.now().minusDays(1))) {
-                storedBySymbol.put(symbol, 0);
-                statusBySymbol.put(symbol, "already_up_to_date");
-                continue;
-            }
-
-            SeriesFetchResult fetchResult = alphaVantageDailySeriesClient.fetchDailyCloseSeries(symbol);
-            Map<LocalDate, BigDecimal> dailySeries = fetchResult.series();
-            if (dailySeries.isEmpty()) {
-                storedBySymbol.put(symbol, 0);
-                statusBySymbol.put(symbol, mapFetchStatus(fetchResult.status()));
-                continue;
-            }
-
-            Set<LocalDate> existingDates = dailyClosePriceRepository.findBySymbolAndPriceDateAfter(symbol, firstBuyDate)
-                    .stream()
-                    .map(DailyClosePriceEntity::getPriceDate)
-                    .collect(LinkedHashSet::new, Set::add, Set::addAll);
-
-            List<DailyClosePriceEntity> toSave = new ArrayList<>();
-            for (Map.Entry<LocalDate, BigDecimal> entry : dailySeries.entrySet()) {
-                LocalDate priceDate = entry.getKey();
-                if (!priceDate.isAfter(firstBuyDate) || existingDates.contains(priceDate)) {
+            Object symbolLock = symbolSyncLocks.computeIfAbsent(symbol, ignored -> new Object());
+            synchronized (symbolLock) {
+                LocalDate latestStoredDate = dailyClosePriceRepository.findTopBySymbolOrderByPriceDateDesc(symbol)
+                        .map(DailyClosePriceEntity::getPriceDate)
+                        .orElse(null);
+                if (latestStoredDate != null && !latestStoredDate.isBefore(LocalDate.now().minusDays(1))) {
+                    storedBySymbol.put(symbol, 0);
+                    statusBySymbol.put(symbol, "already_up_to_date");
                     continue;
                 }
-                DailyClosePriceEntity entity = new DailyClosePriceEntity();
-                entity.setSymbol(symbol);
-                entity.setPriceDate(priceDate);
-                entity.setClosePrice(entry.getValue());
-                toSave.add(entity);
-            }
 
-            if (!toSave.isEmpty()) {
-                dailyClosePriceRepository.saveAll(toSave);
+                SeriesFetchResult fetchResult = alphaVantageDailySeriesClient.fetchDailyCloseSeries(symbol);
+                Map<LocalDate, BigDecimal> dailySeries = fetchResult.series();
+                if (dailySeries.isEmpty()) {
+                    storedBySymbol.put(symbol, 0);
+                    statusBySymbol.put(symbol, mapFetchStatus(fetchResult.status()));
+                    continue;
+                }
+
+                Set<LocalDate> existingDates = dailyClosePriceRepository.findBySymbolAndPriceDateAfter(symbol, firstBuyDate)
+                        .stream()
+                        .map(DailyClosePriceEntity::getPriceDate)
+                        .collect(LinkedHashSet::new, Set::add, Set::addAll);
+
+                List<DailyClosePriceEntity> toSave = new ArrayList<>();
+                for (Map.Entry<LocalDate, BigDecimal> entry : dailySeries.entrySet()) {
+                    LocalDate priceDate = entry.getKey();
+                    if (!priceDate.isAfter(firstBuyDate) || existingDates.contains(priceDate)) {
+                        continue;
+                    }
+                    DailyClosePriceEntity entity = new DailyClosePriceEntity();
+                    entity.setSymbol(symbol);
+                    entity.setPriceDate(priceDate);
+                    entity.setClosePrice(entry.getValue());
+                    toSave.add(entity);
+                }
+
+                if (!toSave.isEmpty()) {
+                    dailyClosePriceRepository.saveAll(toSave);
+                    log.debug("Stored {} new close prices for {}.", toSave.size(), symbol);
+                }
+                storedBySymbol.put(symbol, toSave.size());
+                statusBySymbol.put(symbol, toSave.isEmpty() ? "no_new_rows" : "stored");
+                pricesStored += toSave.size();
             }
-            storedBySymbol.put(symbol, toSave.size());
-            statusBySymbol.put(symbol, toSave.isEmpty() ? "no_new_rows" : "stored");
-            pricesStored += toSave.size();
         }
 
         return new PriceSyncResult(

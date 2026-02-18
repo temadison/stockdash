@@ -44,6 +44,12 @@ Configure pricing API key:
 export STOCKDASH_PRICING_ALPHA_VANTAGE_API_KEY=your_api_key_here
 ```
 
+Security note:
+
+- Never commit real API keys or DB passwords to the repo.
+- Never paste real secrets into chat, screenshots, or shared docs.
+- If a secret is exposed, rotate it immediately and update local env vars/run configs.
+
 If no API key is configured, the service falls back to each symbol's last trade price in your transaction history.
 
 ### CSV Format
@@ -95,12 +101,12 @@ Start MySQL (Homebrew on macOS):
 brew services start mysql
 ```
 
-Set credentials (optional if using defaults):
+Set credentials:
 
 ```bash
 export STOCKDASH_DB_URL="jdbc:mysql://localhost:3306/stockdash?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
-export STOCKDASH_DB_USERNAME="root"
-export STOCKDASH_DB_PASSWORD=""
+export STOCKDASH_DB_USERNAME="stockdash-app"
+export STOCKDASH_DB_PASSWORD="your_mysql_password"
 ```
 
 Run backend with MySQL profile:
