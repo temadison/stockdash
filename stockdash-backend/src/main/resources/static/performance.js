@@ -32,6 +32,10 @@ function seriesColor(index) {
   return palette[index % palette.length];
 }
 
+function stockHistoryUrl(symbol) {
+  return `/history.html?symbol=${encodeURIComponent(symbol)}`;
+}
+
 function drawPerformanceChart(points) {
   const ctx = perfCanvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
@@ -128,7 +132,10 @@ function drawPerformanceChart(points) {
   });
 
   perfLegend.innerHTML = symbols
-    .map((symbol, i) => `<span class="legend-item"><span class="legend-dot" style="background:${seriesColor(i)}"></span>${symbol}</span>`)
+    .map(
+      (symbol, i) =>
+        `<a class="legend-item symbol-link" href="${stockHistoryUrl(symbol)}"><span class="legend-dot" style="background:${seriesColor(i)}"></span>${symbol}</a>`
+    )
     .join("");
 }
 

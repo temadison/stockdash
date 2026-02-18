@@ -101,13 +101,21 @@ input[type="file"] {
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   background: linear-gradient(120deg, #0f766e, #0b5f59);
   color: #fff;
   border-radius: 10px;
   padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1;
+  font-family: inherit;
+  text-decoration: none;
   cursor: pointer;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .btn:hover {

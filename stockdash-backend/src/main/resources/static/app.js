@@ -53,7 +53,7 @@ async function loadSummary() {
       card.className = "account";
       const accountUrl = `/performance.html?account=${encodeURIComponent(snapshot.accountName)}`;
       card.innerHTML = `
-        <h3><a class="account-link" href="${accountUrl}" target="_blank" rel="noreferrer">${snapshot.accountName}</a></h3>
+        <h3><a class="account-link" href="${accountUrl}">${snapshot.accountName}</a></h3>
         <div class="total">${money.format(snapshot.totalValue)}</div>
         <table>
           <thead>
@@ -67,7 +67,7 @@ async function loadSummary() {
         const row = document.createElement("tr");
         const historyUrl = `/history.html?symbol=${encodeURIComponent(p.symbol)}`;
         row.innerHTML = `
-          <td><a href="${historyUrl}" target="_blank" rel="noreferrer" class="symbol-link">${p.symbol}</a></td>
+          <td><a href="${historyUrl}" class="symbol-link">${p.symbol}</a></td>
           <td class="num">${p.quantity}</td>
           <td class="num">${money.format(p.currentPrice)}</td>
           <td class="num">${money.format(p.marketValue)}</td>
