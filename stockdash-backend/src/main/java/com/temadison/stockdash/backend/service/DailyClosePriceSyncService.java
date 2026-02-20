@@ -12,8 +12,8 @@ import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -45,7 +45,6 @@ public class DailyClosePriceSyncService {
         this.alphaVantageDailySeriesClient = alphaVantageDailySeriesClient;
     }
 
-    @Transactional
     public PriceSyncResult syncForStocks(List<String> stocks) {
         List<String> normalizedSymbols = normalizeStocks(stocks);
         Map<String, LocalDate> firstBuyDateBySymbol = firstBuyDatesBySymbol(normalizedSymbols);
@@ -102,13 +101,10 @@ public class DailyClosePriceSyncService {
                     toSave.add(entity);
                 }
 
-                if (!toSave.isEmpty()) {
-                    dailyClosePriceRepository.saveAll(toSave);
-                    log.debug("Stored {} new close prices for {}.", toSave.size(), symbol);
-                }
-                storedBySymbol.put(symbol, toSave.size());
-                statusBySymbol.put(symbol, toSave.isEmpty() ? "no_new_rows" : "stored");
-                pricesStored += toSave.size();
+                int inserted = saveIgnoringDuplicates(symbol, toSave);
+                storedBySymbol.put(symbol, inserted);
+                statusBySymbol.put(symbol, inserted == 0 ? "no_new_rows" : "stored");
+                pricesStored += inserted;
             }
         }
 
@@ -164,5 +160,29 @@ public class DailyClosePriceSyncService {
             case NO_DATA -> "no_data";
             case SUCCESS -> "no_data";
         };
+    }
+
+    private int saveIgnoringDuplicates(String symbol, List<DailyClosePriceEntity> toSave) {
+        if (toSave.isEmpty()) {
+            return 0;
+        }
+
+        try {
+            dailyClosePriceRepository.saveAll(toSave);
+            log.debug("Stored {} new close prices for {}.", toSave.size(), symbol);
+            return toSave.size();
+        } catch (DataIntegrityViolationException batchFailure) {
+            int inserted = 0;
+            for (DailyClosePriceEntity entity : toSave) {
+                try {
+                    dailyClosePriceRepository.saveAndFlush(entity);
+                    inserted++;
+                } catch (DataIntegrityViolationException duplicate) {
+                    log.debug("Skipping duplicate close price row for {} on {}.", symbol, entity.getPriceDate());
+                }
+            }
+            log.debug("Stored {} new close prices for {} after duplicate filtering.", inserted, symbol);
+            return inserted;
+        }
     }
 }
