@@ -1,10 +1,12 @@
 const titleEl = document.getElementById("history-title");
 const metaEl = document.getElementById("history-meta");
+const summaryEl = document.getElementById("history-summary");
 const chartWrap = document.getElementById("history-chart-wrap");
 const canvas = document.getElementById("history-chart");
 const tooltip = document.getElementById("chart-tooltip");
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const percent = new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let lastSeries = [];
 let hoverIndex = -1;
 
@@ -13,8 +15,84 @@ function symbolFromQuery() {
   return (url.searchParams.get("symbol") || "").trim().toUpperCase();
 }
 
+function dateRangeFromQuery() {
+  const url = new URL(window.location.href);
+  const startDate = (url.searchParams.get("startDate") || "").trim();
+  const endDate = (url.searchParams.get("endDate") || "").trim();
+  return { startDate, endDate };
+}
+
+function accountFromQuery() {
+  const url = new URL(window.location.href);
+  return (url.searchParams.get("account") || "").trim();
+}
+
+function buildHistoryApiUrl(symbol, startDate, endDate) {
+  const params = new URLSearchParams();
+  params.set("symbol", symbol);
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  return `/api/portfolio/prices/history?${params.toString()}`;
+}
+
+function daysBetween(startIso, endIso) {
+  const start = new Date(`${startIso}T00:00:00`);
+  const end = new Date(`${endIso}T00:00:00`);
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 86400000));
+}
+
+function formatSignedMoney(value) {
+  if (value === 0) return money.format(0);
+  return `${value > 0 ? "+" : "-"}${money.format(Math.abs(value))}`;
+}
+
+function formatSignedPercent(value) {
+  if (value === null || Number.isNaN(value)) return "N/A";
+  if (value === 0) return percent.format(0);
+  return `${value > 0 ? "+" : "-"}${percent.format(Math.abs(value))}`;
+}
+
+function gainLossClass(value) {
+  if (value > 0) return "status-ok";
+  if (value < 0) return "status-bad";
+  return "";
+}
+
+function renderSummary(series) {
+  if (!series.length) {
+    summaryEl.innerHTML = "";
+    return;
+  }
+
+  const startPrice = Number(series[0].closePrice);
+  const endPrice = Number(series[series.length - 1].closePrice);
+  const net = endPrice - startPrice;
+  const totalReturn = startPrice > 0 ? net / startPrice : null;
+
+  const elapsedDays = daysBetween(series[0].date, series[series.length - 1].date);
+  const years = elapsedDays / 365.2425;
+  const cagr = startPrice > 0 && endPrice > 0 && years > 0 ? Math.pow(endPrice / startPrice, 1 / years) - 1 : null;
+
+  summaryEl.innerHTML = `
+    <article class="summary-card">
+      <div class="summary-label">Net Gain/Loss</div>
+      <div class="summary-value ${gainLossClass(net)}">${formatSignedMoney(net)}</div>
+    </article>
+    <article class="summary-card">
+      <div class="summary-label">Return</div>
+      <div class="summary-value ${gainLossClass(totalReturn ?? 0)}">${formatSignedPercent(totalReturn)}</div>
+    </article>
+    <article class="summary-card">
+      <div class="summary-label">CAGR</div>
+      <div class="summary-value ${gainLossClass(cagr ?? 0)}">${formatSignedPercent(cagr)}</div>
+    </article>
+  `;
+}
+
 async function loadHistory() {
   const symbol = symbolFromQuery();
+  const { startDate, endDate } = dateRangeFromQuery();
+  const account = accountFromQuery();
   if (!symbol) {
     titleEl.textContent = "Missing Symbol";
     metaEl.textContent = "No symbol was provided in the URL.";
@@ -25,19 +103,26 @@ async function loadHistory() {
   metaEl.textContent = "Loading history...";
 
   try {
-    const res = await fetch(`/api/portfolio/prices/history?symbol=${encodeURIComponent(symbol)}`);
+    const res = await fetch(buildHistoryApiUrl(symbol, startDate, endDate));
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || "Failed to load history.");
 
-    metaEl.textContent = `${data.length} daily close record(s)`;
+    const rangeLabel = startDate && endDate
+      ? ` (${formatDateLabel(startDate)} to ${formatDateLabel(endDate)})`
+      : "";
+    const accountLabel = account ? ` for ${account}` : "";
+    metaEl.textContent = `${data.length} daily close record(s)${accountLabel}${rangeLabel}`;
     if (!data.length) {
+      renderSummary([]);
       chartWrap.innerHTML = "<div class='meta'>No stored historical prices found for this symbol.</div>";
       return;
     }
     lastSeries = [...data].reverse();
+    renderSummary(lastSeries);
     drawChart(lastSeries);
   } catch (err) {
     metaEl.textContent = `Error: ${err.message}`;
+    renderSummary([]);
   }
 }
 

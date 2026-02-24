@@ -3,10 +3,12 @@ const perfStart = document.getElementById("perf-start");
 const perfEnd = document.getElementById("perf-end");
 const loadBtn = document.getElementById("load-performance");
 const perfMeta = document.getElementById("perf-meta");
+const perfSummary = document.getElementById("perf-summary");
 const perfLegend = document.getElementById("perf-legend");
 const perfCanvas = document.getElementById("performance-chart");
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const percent = new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let lastPoints = [];
 
 function todayIso() {
@@ -32,8 +34,67 @@ function seriesColor(index) {
   return palette[index % palette.length];
 }
 
-function stockHistoryUrl(symbol) {
-  return `/history.html?symbol=${encodeURIComponent(symbol)}`;
+function stockHistoryUrl(symbol, startDate, endDate, account) {
+  const params = new URLSearchParams();
+  params.set("symbol", symbol);
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  if (account) params.set("account", account);
+  return `/history.html?${params.toString()}`;
+}
+
+function daysBetween(startIso, endIso) {
+  const start = new Date(`${startIso}T00:00:00`);
+  const end = new Date(`${endIso}T00:00:00`);
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 86400000));
+}
+
+function formatSignedMoney(value) {
+  if (value === 0) return money.format(0);
+  return `${value > 0 ? "+" : "-"}${money.format(Math.abs(value))}`;
+}
+
+function formatSignedPercent(value) {
+  if (value === null || Number.isNaN(value)) return "N/A";
+  if (value === 0) return percent.format(0);
+  return `${value > 0 ? "+" : "-"}${percent.format(Math.abs(value))}`;
+}
+
+function gainLossClass(value) {
+  if (value > 0) return "status-ok";
+  if (value < 0) return "status-bad";
+  return "";
+}
+
+function renderSummary(points) {
+  if (!points.length) {
+    perfSummary.innerHTML = "";
+    return;
+  }
+
+  const startValue = Number(points[0].totalValue);
+  const endValue = Number(points[points.length - 1].totalValue);
+  const net = endValue - startValue;
+  const totalReturn = startValue > 0 ? net / startValue : null;
+
+  const elapsedDays = daysBetween(points[0].date, points[points.length - 1].date);
+  const years = elapsedDays / 365.2425;
+  const cagr = startValue > 0 && endValue > 0 && years > 0 ? Math.pow(endValue / startValue, 1 / years) - 1 : null;
+
+  perfSummary.innerHTML = `
+    <article class="summary-card">
+      <div class="summary-label">Net Gain/Loss</div>
+      <div class="summary-value ${gainLossClass(net)}">${formatSignedMoney(net)}</div>
+    </article>
+    <article class="summary-card">
+      <div class="summary-label">Return</div>
+      <div class="summary-value ${gainLossClass(totalReturn ?? 0)}">${formatSignedPercent(totalReturn)}</div>
+    </article>
+    <article class="summary-card">
+      <div class="summary-label">CAGR</div>
+      <div class="summary-value ${gainLossClass(cagr ?? 0)}">${formatSignedPercent(cagr)}</div>
+    </article>
+  `;
 }
 
 function drawPerformanceChart(points) {
@@ -131,10 +192,13 @@ function drawPerformanceChart(points) {
     baseline = top;
   });
 
+  const rangeStart = points[0]?.date;
+  const rangeEnd = points[points.length - 1]?.date;
+  const account = getAccountParam();
   perfLegend.innerHTML = symbols
     .map(
       (symbol, i) =>
-        `<a class="legend-item symbol-link" href="${stockHistoryUrl(symbol)}"><span class="legend-dot" style="background:${seriesColor(i)}"></span>${symbol}</a>`
+        `<a class="legend-item symbol-link" href="${stockHistoryUrl(symbol, rangeStart, rangeEnd, account)}"><span class="legend-dot" style="background:${seriesColor(i)}"></span>${symbol}</a>`
     )
     .join("");
 }
@@ -158,6 +222,7 @@ async function loadPerformance() {
     lastPoints = data;
     if (!data.length) {
       perfMeta.textContent = "No performance data available for this account/range.";
+      renderSummary([]);
       perfLegend.innerHTML = "";
       const ctx = perfCanvas.getContext("2d");
       ctx.clearRect(0, 0, perfCanvas.clientWidth, perfCanvas.clientHeight);
@@ -170,9 +235,11 @@ async function loadPerformance() {
       perfEnd.value = data[data.length - 1].date;
     }
     perfMeta.textContent = `${data.length} day(s) shown: ${formatDateLabel(data[0].date)} to ${formatDateLabel(data[data.length - 1].date)}`;
+    renderSummary(data);
     drawPerformanceChart(data);
   } catch (err) {
     perfMeta.textContent = `Error: ${err.message}`;
+    renderSummary([]);
   } finally {
     loadBtn.disabled = false;
   }

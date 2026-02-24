@@ -27,7 +27,7 @@ This keeps things easy to learn while staying modular and scalable.
 Example sync request:
 
 ```bash
-curl -X POST http://localhost:8080/api/portfolio/prices/sync \
+curl -X POST http://localhost:18090/api/portfolio/prices/sync \
   -H "Content-Type: application/json" \
   -d '{"stocks":["AAPL","MSFT","ASML"]}'
 ```
@@ -72,13 +72,13 @@ Required headers:
 
 Then open:
 
-- `http://localhost:8080/api/health`
-- `http://localhost:8080/api/portfolio/daily-summary?date=2026-02-16`
+- `http://localhost:18090/api/health`
+- `http://localhost:18090/api/portfolio/daily-summary?date=2026-02-16`
 
 Example upload:
 
 ```bash
-curl -X POST http://localhost:8080/api/portfolio/transactions/upload \
+curl -X POST http://localhost:18090/api/portfolio/transactions/upload \
   -F "file=@transactions.csv"
 ```
 
