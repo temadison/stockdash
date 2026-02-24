@@ -52,12 +52,27 @@ Security note:
 
 If no API key is configured, the service falls back to each symbol's last trade price in your transaction history.
 
+## Cloud Deployment Defaults
+
+- App port supports cloud routing via `PORT`:
+  - `server.port=${PORT:18090}`
+- Seed import remains off by default in base config.
+- Included seed file (`stockdash-backend/src/main/resources/seed/transactions.csv`) is synthetic demo data only.
+
+For a demo deployment (for example `stockdash.temadison.com`), enable demo seed data:
+
+```bash
+export STOCKDASH_SEED_ENABLED=true
+```
+
+For a production-style empty startup, keep `STOCKDASH_SEED_ENABLED` unset (or `false`) and load real data through upload/API.
+
 ### CSV Format
 
 Required headers:
 
 - `trade_date` (ISO date, example: `2026-02-16`)
-- `account` (example: `IRA`)
+- `account` (example: `DEMO_GROWTH`)
 - `symbol` (example: `AAPL`)
 - `type` (`BUY` or `SELL`)
 - `quantity` (must be `> 0`)
