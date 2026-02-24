@@ -30,6 +30,23 @@ body {
   padding: 28px 18px 48px;
 }
 
+.demo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 2px solid #9a3412;
+  border-radius: 12px;
+  background: linear-gradient(120deg, #fff7ed, #ffedd5);
+  color: #7c2d12;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 900;
+  font-size: 0.82rem;
+}
+
 .hero h1 {
   margin: 0;
   font-size: clamp(2rem, 4.5vw, 3.2rem);
