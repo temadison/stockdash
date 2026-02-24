@@ -12,6 +12,7 @@ const syncStocks = document.getElementById("sync-stocks");
 const syncSummary = document.getElementById("sync-summary");
 const syncTable = document.getElementById("sync-table");
 
+const demoData = window.StockdashDemoData || null;
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 let summaryRequestToken = 0;
 
@@ -28,6 +29,31 @@ function statusClass(status) {
   return "status-bad";
 }
 
+async function fetchJson(url, options) {
+  const res = await fetch(url, options);
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (err) {
+    data = null;
+  }
+  if (!res.ok) {
+    const msg = data?.message || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return data;
+}
+
+async function fetchFromApiOrDemo(url, options, demoLoader) {
+  try {
+    const data = await fetchJson(url, options);
+    return { data, fromDemo: false };
+  } catch (err) {
+    if (!demoData || !demoLoader) throw err;
+    return { data: demoLoader(), fromDemo: true };
+  }
+}
+
 async function loadSummary() {
   const requestToken = ++summaryRequestToken;
   const date = summaryDate.value;
@@ -37,12 +63,10 @@ async function loadSummary() {
   loadSummaryBtn.disabled = true;
 
   try {
-    const res = await fetch(url);
-    const data = await res.json();
+    const { data, fromDemo } = await fetchFromApiOrDemo(url, undefined, () => demoData.dailySummary(date));
     if (requestToken !== summaryRequestToken) return;
-    if (!res.ok) throw new Error(data.message || "Failed to load summary");
 
-    summaryMeta.textContent = `${data.length} account snapshot(s)`;
+    summaryMeta.textContent = `${data.length} account snapshot(s)${fromDemo ? " · Demo data" : ""}`;
     if (!data.length) {
       summaryGrid.innerHTML = "<div class='meta'>No portfolio data found for this date.</div>";
       return;
@@ -99,10 +123,17 @@ async function uploadCsv(event) {
   form.append("file", file);
 
   try {
-    const res = await fetch("/api/portfolio/transactions/upload", { method: "POST", body: form });
-    const data = await res.json();
+    const { data, fromDemo } = await fetchFromApiOrDemo(
+      "/api/portfolio/transactions/upload",
+      { method: "POST", body: form },
+      () => demoData.uploadUnavailable()
+    );
     uploadResult.textContent = JSON.stringify(data, null, 2);
-    if (res.ok) {
+    if (fromDemo) {
+      uploadResult.textContent = `${uploadResult.textContent}\n\nDemo mode note: live CSV upload is disabled on static hosting.`;
+      return;
+    }
+    if (data) {
       await loadSummary();
     }
   } catch (err) {
@@ -125,15 +156,17 @@ async function runSync(event) {
   }
 
   try {
-    const res = await fetch("/api/portfolio/prices/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stocks }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Sync failed");
+    const { data, fromDemo } = await fetchFromApiOrDemo(
+      "/api/portfolio/prices/sync",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stocks }),
+      },
+      () => demoData.sync(stocks)
+    );
 
-    syncSummary.textContent = `${data.pricesStored} new prices stored across ${data.symbolsWithPurchases}/${data.symbolsRequested} symbols with purchases.`;
+    syncSummary.textContent = `${data.pricesStored} new prices stored across ${data.symbolsWithPurchases}/${data.symbolsRequested} symbols with purchases.${fromDemo ? " (Demo mode)" : ""}`;
     const statuses = data.statusBySymbol || {};
     const stored = data.storedBySymbol || {};
     const symbols = Array.from(new Set([...Object.keys(statuses), ...Object.keys(stored), ...(data.skippedSymbols || [])]));

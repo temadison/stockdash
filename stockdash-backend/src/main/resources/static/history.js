@@ -5,6 +5,7 @@ const chartWrap = document.getElementById("history-chart-wrap");
 const canvas = document.getElementById("history-chart");
 const tooltip = document.getElementById("chart-tooltip");
 
+const demoData = window.StockdashDemoData || null;
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const percent = new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let lastSeries = [];
@@ -33,6 +34,21 @@ function buildHistoryApiUrl(symbol, startDate, endDate) {
   if (startDate) params.set("startDate", startDate);
   if (endDate) params.set("endDate", endDate);
   return `/api/portfolio/prices/history?${params.toString()}`;
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url);
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (err) {
+    data = null;
+  }
+  if (!res.ok) {
+    const msg = data?.message || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return data;
 }
 
 function daysBetween(startIso, endIso) {
@@ -103,15 +119,22 @@ async function loadHistory() {
   metaEl.textContent = "Loading history...";
 
   try {
-    const res = await fetch(buildHistoryApiUrl(symbol, startDate, endDate));
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed to load history.");
+    const apiUrl = buildHistoryApiUrl(symbol, startDate, endDate);
+    let fromDemo = false;
+    let data;
+    try {
+      data = await fetchJson(apiUrl);
+    } catch (err) {
+      if (!demoData) throw err;
+      data = demoData.history(symbol, startDate || undefined, endDate || undefined);
+      fromDemo = true;
+    }
 
     const rangeLabel = startDate && endDate
       ? ` (${formatDateLabel(startDate)} to ${formatDateLabel(endDate)})`
       : "";
     const accountLabel = account ? ` for ${account}` : "";
-    metaEl.textContent = `${data.length} daily close record(s)${accountLabel}${rangeLabel}`;
+    metaEl.textContent = `${data.length} daily close record(s)${accountLabel}${rangeLabel}${fromDemo ? " · Demo data" : ""}`;
     if (!data.length) {
       renderSummary([]);
       chartWrap.innerHTML = "<div class='meta'>No stored historical prices found for this symbol.</div>";

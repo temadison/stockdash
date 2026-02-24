@@ -7,6 +7,7 @@ const perfSummary = document.getElementById("perf-summary");
 const perfLegend = document.getElementById("perf-legend");
 const perfCanvas = document.getElementById("performance-chart");
 
+const demoData = window.StockdashDemoData || null;
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const percent = new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let lastPoints = [];
@@ -203,6 +204,21 @@ function drawPerformanceChart(points) {
     .join("");
 }
 
+async function fetchJson(url) {
+  const res = await fetch(url);
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (err) {
+    data = null;
+  }
+  if (!res.ok) {
+    const msg = data?.message || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return data;
+}
+
 async function loadPerformance() {
   const account = getAccountParam();
   const explicitStart = Boolean(perfStart.value);
@@ -216,9 +232,15 @@ async function loadPerformance() {
   loadBtn.disabled = true;
 
   try {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed to load performance.");
+    let fromDemo = false;
+    let data;
+    try {
+      data = await fetchJson(url);
+    } catch (err) {
+      if (!demoData) throw err;
+      data = demoData.performance(account, perfStart.value || undefined, perfEnd.value || undefined);
+      fromDemo = true;
+    }
     lastPoints = data;
     if (!data.length) {
       perfMeta.textContent = "No performance data available for this account/range.";
@@ -234,7 +256,7 @@ async function loadPerformance() {
     if (!explicitEnd) {
       perfEnd.value = data[data.length - 1].date;
     }
-    perfMeta.textContent = `${data.length} day(s) shown: ${formatDateLabel(data[0].date)} to ${formatDateLabel(data[data.length - 1].date)}`;
+    perfMeta.textContent = `${data.length} day(s) shown: ${formatDateLabel(data[0].date)} to ${formatDateLabel(data[data.length - 1].date)}${fromDemo ? " · Demo data" : ""}`;
     renderSummary(data);
     drawPerformanceChart(data);
   } catch (err) {

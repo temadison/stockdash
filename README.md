@@ -67,6 +67,18 @@ export STOCKDASH_SEED_ENABLED=true
 
 For a production-style empty startup, keep `STOCKDASH_SEED_ENABLED` unset (or `false`) and load real data through upload/API.
 
+### Static Portfolio Deployment (Vercel)
+
+For a zero-backend portfolio demo, deploy the static site folder directly:
+
+1. In Vercel, import this repo.
+2. Set **Root Directory** to `stockdash-backend/src/main/resources/static`.
+3. Leave build/install commands empty.
+4. Deploy.
+
+The frontend will automatically use local demo data when `/api/*` endpoints are unavailable.
+Upload/sync actions remain visible but run in demo mode (no backend writes).
+
 ### CSV Format
 
 Required headers:
