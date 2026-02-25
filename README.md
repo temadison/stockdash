@@ -140,6 +140,8 @@ Generate JaCoCo coverage report and enforce the line-coverage gate:
 Coverage reports are written to:
 - `stockdash-backend/build/reports/jacoco/test/html/index.html`
 
+Performance smoke tests for key read endpoints (`/api/portfolio/daily-summary`, `/api/portfolio/performance`) run as part of `:stockdash-backend:test`.
+
 Build backend artifact:
 
 ```bash
