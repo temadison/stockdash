@@ -129,8 +129,8 @@ tasks.named('bootJar') {
 }
 
 tasks.named('bootRun', org.springframework.boot.gradle.tasks.run.BootRun) {
-    description = 'Runs the backend for local development (mysql + local seed).'
-    args '--spring.profiles.active=mysql,seed-local'
+    description = 'Runs the backend for local development (mysql profile).'
+    args '--spring.profiles.active=mysql'
 }
 
 tasks.register('bootRunSeed', org.springframework.boot.gradle.tasks.run.BootRun) {
@@ -151,8 +151,8 @@ tasks.register('bootRunSeedLocal', org.springframework.boot.gradle.tasks.run.Boo
 
 tasks.register('bootRunMysql', org.springframework.boot.gradle.tasks.run.BootRun) {
     group = 'application'
-    description = 'Runs the backend with mysql + local seed profiles enabled.'
+    description = 'Runs the backend with mysql profile enabled.'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.temadison.stockdash.backend.StockDashboardApplication'
-    args '--spring.profiles.active=mysql,seed-local'
+    args '--spring.profiles.active=mysql'
 }

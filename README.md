@@ -213,11 +213,8 @@ Run backend with MySQL profile:
 ./gradlew :stockdash-backend:bootRunMysql
 ```
 
-Note: `bootRun` and `bootRunMysql` both default to local development profiles:
-- `mysql`
-- `seed-local`
-
-With `seed-local`, dev fallback price generation is enabled (`stockdash.pricing.local-fallback-enabled=true`), so `/api/portfolio/prices/sync` can populate local `daily_close_prices` even when Alpha Vantage is rate-limited.
+Note: `bootRun` and `bootRunMysql` now default to `mysql` only (no local fallback profile).
+If you explicitly run with `seed-local`, fallback price generation is enabled (`stockdash.pricing.local-fallback-enabled=true`), so `/api/portfolio/prices/sync` can populate local `daily_close_prices` when Alpha Vantage is rate-limited.
 
 ### Run With Docker Compose (Backend + MySQL)
 
