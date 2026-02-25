@@ -155,6 +155,7 @@ public class DailyClosePriceSyncService {
     private String mapFetchStatus(SeriesFetchStatus status) {
         return switch (status) {
             case RATE_LIMITED -> "rate_limited";
+            case CIRCUIT_OPEN -> "circuit_open";
             case INVALID_SYMBOL -> "invalid_symbol";
             case API_ERROR -> "api_error";
             case NO_DATA -> "no_data";

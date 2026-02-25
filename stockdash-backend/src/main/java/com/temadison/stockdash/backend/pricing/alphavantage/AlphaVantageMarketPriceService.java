@@ -18,7 +18,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -40,14 +39,13 @@ public class AlphaVantageMarketPriceService implements MarketPriceService {
 
     public AlphaVantageMarketPriceService(
             PricingProperties pricingProperties,
-            AlphaVantageRequestLimiter requestLimiter
+            AlphaVantageRequestLimiter requestLimiter,
+            HttpClient alphaVantageHttpClient
     ) {
         this.pricingProperties = pricingProperties;
         this.requestLimiter = requestLimiter;
         this.objectMapper = new ObjectMapper();
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
+        this.httpClient = alphaVantageHttpClient;
         this.closePriceCache = new ConcurrentHashMap<>();
     }
 
@@ -79,7 +77,7 @@ public class AlphaVantageMarketPriceService implements MarketPriceService {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(requestUrl))
-                .timeout(Duration.ofSeconds(15))
+                .timeout(pricingProperties.requestTimeoutOrDefault())
                 .GET()
                 .build();
 

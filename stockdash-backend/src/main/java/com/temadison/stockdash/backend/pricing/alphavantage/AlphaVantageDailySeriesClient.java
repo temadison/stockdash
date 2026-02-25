@@ -3,8 +3,16 @@ package com.temadison.stockdash.backend.pricing.alphavantage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.temadison.stockdash.backend.pricing.PricingProperties;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryRegistry;
+import io.github.resilience4j.timelimiter.TimeLimiter;
+import io.github.resilience4j.timelimiter.TimeLimiterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -16,8 +24,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.LocalDate;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.Callable;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -26,26 +37,52 @@ import java.util.Map;
 public class AlphaVantageDailySeriesClient {
 
     private static final Logger log = LoggerFactory.getLogger(AlphaVantageDailySeriesClient.class);
+    private static final String RESILIENCE_INSTANCE_NAME = "alphaVantageDailySeries";
     private static final String TIME_SERIES_KEY = "Time Series (Daily)";
     private static final String DAILY_CLOSE_KEY = "4. close";
-    private static final int MAX_ATTEMPTS = 3;
-    private static final long RETRY_BACKOFF_MS = 2000L;
 
     private final PricingProperties pricingProperties;
-    private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final AlphaVantageRequestLimiter requestLimiter;
+    private final ObjectMapper objectMapper;
+    private final Retry retry;
+    private final CircuitBreaker circuitBreaker;
+    private final TimeLimiter timeLimiter;
 
+    @Autowired
     public AlphaVantageDailySeriesClient(
             PricingProperties pricingProperties,
-            AlphaVantageRequestLimiter requestLimiter
+            AlphaVantageRequestLimiter requestLimiter,
+            HttpClient alphaVantageHttpClient,
+            RetryRegistry retryRegistry,
+            CircuitBreakerRegistry circuitBreakerRegistry,
+            TimeLimiterRegistry timeLimiterRegistry
+    ) {
+        this(
+                pricingProperties,
+                requestLimiter,
+                alphaVantageHttpClient,
+                retryRegistry.retry(RESILIENCE_INSTANCE_NAME),
+                circuitBreakerRegistry.circuitBreaker(RESILIENCE_INSTANCE_NAME),
+                timeLimiterRegistry.timeLimiter(RESILIENCE_INSTANCE_NAME)
+        );
+    }
+
+    AlphaVantageDailySeriesClient(
+            PricingProperties pricingProperties,
+            AlphaVantageRequestLimiter requestLimiter,
+            HttpClient httpClient,
+            Retry retry,
+            CircuitBreaker circuitBreaker,
+            TimeLimiter timeLimiter
     ) {
         this.pricingProperties = pricingProperties;
         this.requestLimiter = requestLimiter;
+        this.httpClient = httpClient;
         this.objectMapper = new ObjectMapper();
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
+        this.retry = retry;
+        this.circuitBreaker = circuitBreaker;
+        this.timeLimiter = timeLimiter;
     }
 
     public SeriesFetchResult fetchDailyCloseSeries(String symbol) {
@@ -69,35 +106,81 @@ public class AlphaVantageDailySeriesClient {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(requestUrl))
-                .timeout(Duration.ofSeconds(15))
+                .timeout(pricingProperties.requestTimeoutOrDefault())
                 .GET()
                 .build();
 
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-            try {
-                requestLimiter.awaitTurn();
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() >= 400) {
-                    log.warn("Price series API request failed with HTTP {} for symbol {}.", response.statusCode(), symbol);
-                    return new SeriesFetchResult(Map.of(), SeriesFetchStatus.API_ERROR);
-                }
-
-                SeriesResponse seriesResponse = extractSeries(response.body(), symbol);
-                if (!seriesResponse.retryableRateLimit() || attempt == MAX_ATTEMPTS) {
-                    return new SeriesFetchResult(seriesResponse.series(), seriesResponse.status());
-                }
-                Thread.sleep(RETRY_BACKOFF_MS * attempt);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.warn("Price series request interrupted for symbol {}.", symbol, e);
-                return new SeriesFetchResult(Map.of(), SeriesFetchStatus.API_ERROR);
-            } catch (IOException e) {
-                log.warn("Unable to fetch price series for symbol {}.", symbol, e);
+        try {
+            Callable<SeriesFetchResult> resilientCall = TimeLimiter.decorateFutureSupplier(
+                    timeLimiter,
+                    () -> CompletableFuture.supplyAsync(() ->
+                            CircuitBreaker.decorateSupplier(
+                                    circuitBreaker,
+                                    Retry.decorateSupplier(retry, () -> fetchSeries(request, symbol))
+                            ).get()
+                    )
+            );
+            return resilientCall.call();
+        } catch (CallNotPermittedException ex) {
+            log.warn("Circuit breaker open for Alpha Vantage daily series call. symbol={}", symbol);
+            return new SeriesFetchResult(Map.of(), SeriesFetchStatus.CIRCUIT_OPEN);
+        } catch (Exception ex) {
+            Throwable root = unwrap(ex);
+            if (root instanceof RetryableSeriesFetchException retryable) {
+                log.warn("Daily series call failed after retries. symbol={} status={}", symbol, retryable.status(), retryable);
+                return new SeriesFetchResult(Map.of(), retryable.status());
+            }
+            if (root instanceof TimeoutException) {
+                log.warn("Daily series call timed out. symbol={}", symbol, root);
                 return new SeriesFetchResult(Map.of(), SeriesFetchStatus.API_ERROR);
             }
+            if (root instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                log.warn("Daily series call interrupted. symbol={}", symbol, root);
+                return new SeriesFetchResult(Map.of(), SeriesFetchStatus.API_ERROR);
+            }
+            log.warn("Daily series call failed unexpectedly. symbol={}", symbol, root);
+            return new SeriesFetchResult(Map.of(), SeriesFetchStatus.API_ERROR);
         }
+    }
 
-        return new SeriesFetchResult(Map.of(), SeriesFetchStatus.RATE_LIMITED);
+    private SeriesFetchResult fetchSeries(HttpRequest request, String symbol) {
+        try {
+            requestLimiter.awaitTurn();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 429 || response.statusCode() >= 500) {
+                throw new RetryableSeriesFetchException(
+                        SeriesFetchStatus.API_ERROR,
+                        "Price series API transient failure HTTP " + response.statusCode() + " for symbol " + symbol + "."
+                );
+            }
+            if (response.statusCode() >= 400) {
+                log.warn("Price series API request failed with HTTP {} for symbol {}.", response.statusCode(), symbol);
+                return new SeriesFetchResult(Map.of(), SeriesFetchStatus.API_ERROR);
+            }
+
+            SeriesResponse seriesResponse = extractSeries(response.body(), symbol);
+            if (seriesResponse.retryableRateLimit()) {
+                throw new RetryableSeriesFetchException(
+                        SeriesFetchStatus.RATE_LIMITED,
+                        "Price series API temporarily rate limited for symbol " + symbol + "."
+                );
+            }
+            return new SeriesFetchResult(seriesResponse.series(), seriesResponse.status());
+        } catch (IOException e) {
+            throw new RetryableSeriesFetchException(SeriesFetchStatus.API_ERROR, "I/O failure when fetching daily series for symbol " + symbol + ".", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RetryableSeriesFetchException(SeriesFetchStatus.API_ERROR, "Interrupted while fetching daily series for symbol " + symbol + ".", e);
+        }
+    }
+
+    private Throwable unwrap(Throwable throwable) {
+        Throwable current = throwable;
+        while (current instanceof ExecutionException && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     private SeriesResponse extractSeries(String payload, String symbol) {
@@ -148,5 +231,23 @@ public class AlphaVantageDailySeriesClient {
     }
 
     private record SeriesResponse(Map<LocalDate, BigDecimal> series, boolean retryableRateLimit, SeriesFetchStatus status) {
+    }
+
+    private static final class RetryableSeriesFetchException extends RuntimeException {
+        private final SeriesFetchStatus status;
+
+        private RetryableSeriesFetchException(SeriesFetchStatus status, String message) {
+            super(message);
+            this.status = status;
+        }
+
+        private RetryableSeriesFetchException(SeriesFetchStatus status, String message, Throwable cause) {
+            super(message, cause);
+            this.status = status;
+        }
+
+        private SeriesFetchStatus status() {
+            return status;
+        }
     }
 }
