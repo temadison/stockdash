@@ -1,0 +1,9 @@
+.git
+.gitignore
+.idea
+.gradle
+**/build
+**/.DS_Store
+**/*.iml
+README.md
+PORTS.md
