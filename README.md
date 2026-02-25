@@ -21,6 +21,16 @@ This keeps things easy to learn while staying modular and scalable.
 
 - Architecture: [docs/architecture.md](docs/architecture.md)
 - Deploy/runbook: [docs/deploy.md](docs/deploy.md)
+- Branch protection: [docs/branch-protection.md](docs/branch-protection.md)
+
+## Portfolio Readiness Signals
+
+- Migration-managed schema (Flyway) with startup validation.
+- Health probes and metrics via Actuator (`liveness`, `readiness`, Prometheus).
+- Structured logs with correlation IDs for request tracing.
+- Unit + MySQL Testcontainers integration coverage in CI.
+- Coverage gate enforced in Gradle (`>= 75%` line coverage).
+- Security scan + CycloneDX SBOM generated in CI.
 
 ## What Works Right Now
 
@@ -137,6 +147,8 @@ Generate JaCoCo coverage report and enforce the line-coverage gate:
 ./gradlew :stockdash-backend:jacocoTestCoverageVerification
 ```
 
+Current gate: bundle line coverage must be at least `75%`.
+
 Coverage reports are written to:
 - `stockdash-backend/build/reports/jacoco/test/html/index.html`
 
@@ -149,6 +161,8 @@ Run dependency vulnerability scan (OWASP Dependency-Check) and generate CycloneD
 ```bash
 ./gradlew :stockdash-backend:securityScan
 ```
+
+By policy, vulnerabilities with CVSS `>= 7.0` fail the scan.
 
 Generated artifacts:
 - `stockdash-backend/build/reports/dependency-check-report.html`

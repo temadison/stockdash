@@ -79,7 +79,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run OWASP scan + SBOM generation
-        continue-on-error: true
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: ./gradlew --no-daemon -PjavaVersion=21 :stockdash-backend:securityScan
 
       - name: Upload security artifacts

@@ -40,13 +40,25 @@ Run from repo root:
 
 ```bash
 ./gradlew :stockdash-backend:check
+./gradlew :stockdash-backend:securityScan
 ```
 
 Verify:
 
 1. Unit tests are green.
 2. Integration tests are green.
-3. JaCoCo gate passes.
+3. JaCoCo gate passes (`>= 75%` line coverage).
+4. Dependency scan passes (fails on CVSS `>= 7.0`).
+
+## Branch Protection
+
+Use GitHub branch protection rules on `main` so deployable quality is enforced before merge:
+
+- Require PR + approval.
+- Require passing checks for `test (17)`, `test (21)`, and `security-scan`.
+- Require branch up to date and conversations resolved.
+
+Reference baseline: `docs/branch-protection.md`.
 
 ## Docker Compose (Local Prod-Like)
 

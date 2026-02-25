@@ -89,7 +89,7 @@ tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification) {
             limit {
                 counter = 'LINE'
                 value = 'COVEREDRATIO'
-                minimum = 0.40
+                minimum = 0.75
             }
         }
     }
@@ -101,7 +101,7 @@ tasks.named('check') {
 }
 
 dependencyCheck {
-    failBuildOnCVSS = 11.0
+    failBuildOnCVSS = 7.0
     formats = ['HTML', 'JSON']
     nvd {
         apiKey = (System.getenv('NVD_API_KEY') ?: (findProperty('nvdApiKey') as String)) ?: ''
