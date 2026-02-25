@@ -120,6 +120,15 @@ class PortfolioControllerUploadTest {
                 .andExpect(jsonPath("$", hasSize(10)));
     }
 
+    @Test
+    void priceHistory_returnsValidationProblemForBlankSymbol() throws Exception {
+        mockMvc.perform(get("/api/portfolio/prices/history")
+                        .param("symbol", " "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.errors", hasSize(1)));
+    }
+
     private byte[] readResource(String resourceName) throws IOException {
         return new ClassPathResource(resourceName).getInputStream().readAllBytes();
     }

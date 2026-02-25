@@ -94,6 +94,89 @@ class AlphaVantageDailySeriesClientTest {
         verify(httpClient, times(1)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
 
+    @Test
+    void returnsInvalidSymbolForInvalidApiCallPayload() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        AlphaVantageRequestLimiter requestLimiter = mock(AlphaVantageRequestLimiter.class);
+        doReturn(false).when(requestLimiter).isDailyLimitReached();
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> response = (HttpResponse<String>) mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+                {"Error Message":"Invalid API call. Please retry or visit the documentation."}
+                """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
+                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                requestLimiter,
+                httpClient,
+                retry(1),
+                circuitBreaker(50.0f, 10, 5),
+                timeLimiter(1)
+        );
+
+        SeriesFetchResult result = client.fetchDailyCloseSeries("BAD");
+
+        assertThat(result.status()).isEqualTo(SeriesFetchStatus.INVALID_SYMBOL);
+        assertThat(result.series()).isEmpty();
+    }
+
+    @Test
+    void returnsRateLimitedForNotePayload() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        AlphaVantageRequestLimiter requestLimiter = mock(AlphaVantageRequestLimiter.class);
+        doReturn(false).when(requestLimiter).isDailyLimitReached();
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> response = (HttpResponse<String>) mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+                {"Note":"Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day."}
+                """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
+                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                requestLimiter,
+                httpClient,
+                retry(1),
+                circuitBreaker(50.0f, 10, 5),
+                timeLimiter(1)
+        );
+
+        SeriesFetchResult result = client.fetchDailyCloseSeries("AAPL");
+
+        assertThat(result.status()).isEqualTo(SeriesFetchStatus.RATE_LIMITED);
+    }
+
+    @Test
+    void returnsApiErrorForMalformedJsonPayload() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        AlphaVantageRequestLimiter requestLimiter = mock(AlphaVantageRequestLimiter.class);
+        doReturn(false).when(requestLimiter).isDailyLimitReached();
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> response = (HttpResponse<String>) mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{not-json}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
+                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                requestLimiter,
+                httpClient,
+                retry(1),
+                circuitBreaker(50.0f, 10, 5),
+                timeLimiter(1)
+        );
+
+        SeriesFetchResult result = client.fetchDailyCloseSeries("AAPL");
+
+        assertThat(result.status()).isEqualTo(SeriesFetchStatus.API_ERROR);
+    }
+
     private Retry retry(int maxAttempts) {
         return Retry.of(
                 "test-retry",
