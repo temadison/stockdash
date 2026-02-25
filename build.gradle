@@ -1,9 +1,14 @@
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
+
 group = 'com.temadison'
 version = '1.0-SNAPSHOT'
 
 def targetJavaVersion = ((findProperty("javaVersion") ?: "21") as Integer)
 
 allprojects {
+    group = rootProject.group
+    version = rootProject.version
+
     repositories {
         mavenCentral()
     }
@@ -16,6 +21,11 @@ subprojects {
         toolchain {
             languageVersion = JavaLanguageVersion.of(targetJavaVersion)
         }
+    }
+
+    tasks.withType(AbstractArchiveTask).configureEach {
+        reproducibleFileOrder = true
+        preserveFileTimestamps = false
     }
 
     test {

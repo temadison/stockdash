@@ -109,6 +109,24 @@ curl -X POST http://localhost:18090/api/portfolio/transactions/upload \
   -F "file=@transactions.csv"
 ```
 
+### Verification And Packaging
+
+Run the full backend verification pipeline (unit + integration tests):
+
+```bash
+./gradlew :stockdash-backend:check
+```
+
+Build backend artifact:
+
+```bash
+./gradlew :stockdash-backend:bootJar
+```
+
+The backend JAR manifest includes:
+- `Implementation-Version` (project version)
+- `Implementation-Commit` (short git SHA, when available)
+
 ### Dev Auto-Restart (No More Ctrl-C Loops)
 
 DevTools is enabled for the backend module. Keep one `bootRun` process running:

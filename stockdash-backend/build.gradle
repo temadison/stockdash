@@ -4,6 +4,27 @@ plugins {
     id 'java'
 }
 
+def resolveGitCommit = {
+    def envSha = System.getenv('GITHUB_SHA')
+    if (envSha != null && !envSha.isBlank()) {
+        return envSha.take(7)
+    }
+
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-parse', '--short', 'HEAD'
+            standardOutput = stdout
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true
+        }
+        def value = stdout.toString().trim()
+        return value.isBlank() ? 'unknown' : value
+    } catch (Exception ignored) {
+        return 'unknown'
+    }
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -44,6 +65,16 @@ tasks.register('integrationTest', Test) {
 
 tasks.named('check') {
     dependsOn tasks.named('integrationTest')
+}
+
+tasks.named('bootJar') {
+    manifest {
+        attributes(
+                'Implementation-Title': 'stockdash-backend',
+                'Implementation-Version': project.version.toString(),
+                'Implementation-Commit': resolveGitCommit()
+        )
+    }
 }
 
 tasks.named('bootRun', org.springframework.boot.gradle.tasks.run.BootRun) {
