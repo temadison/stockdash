@@ -6,11 +6,17 @@ const perfMeta = document.getElementById("perf-meta");
 const perfSummary = document.getElementById("perf-summary");
 const perfLegend = document.getElementById("perf-legend");
 const perfCanvas = document.getElementById("performance-chart");
+const demoBanner = document.querySelector(".demo-banner");
 
 const demoData = window.StockdashDemoData || null;
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const percent = new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let lastPoints = [];
+
+function setDemoMode(active) {
+  if (!demoBanner) return;
+  demoBanner.style.display = active ? "" : "none";
+}
 
 function todayIso() {
   const d = new Date();
@@ -213,7 +219,7 @@ async function fetchJson(url) {
     data = null;
   }
   if (!res.ok) {
-    const msg = data?.message || `Request failed (${res.status})`;
+    const msg = data?.detail || data?.message || `Request failed (${res.status})`;
     throw new Error(msg);
   }
   return data;
@@ -236,10 +242,12 @@ async function loadPerformance() {
     let data;
     try {
       data = await fetchJson(url);
+      setDemoMode(false);
     } catch (err) {
       if (!demoData) throw err;
       data = demoData.performance(account, perfStart.value || undefined, perfEnd.value || undefined);
       fromDemo = true;
+      setDemoMode(true);
     }
     lastPoints = data;
     if (!data.length) {
@@ -273,6 +281,7 @@ window.addEventListener("resize", () => {
 
 const account = getAccountParam();
 titleEl.textContent = account === "TOTAL" ? "Total Portfolio" : `${account} Performance`;
+setDemoMode(false);
 loadBtn.addEventListener("click", loadPerformance);
 
 void loadPerformance();

@@ -245,11 +245,16 @@
     };
   }
 
+  function defaultSymbols() {
+    return Array.from(new Set(transactions.map((t) => t.symbol))).sort();
+  }
+
   window.StockdashDemoData = {
     dailySummary,
     performance,
     history,
     sync,
+    defaultSymbols,
     uploadUnavailable,
   };
 })();

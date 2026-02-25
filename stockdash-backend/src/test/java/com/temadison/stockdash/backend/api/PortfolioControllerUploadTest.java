@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -22,8 +23,11 @@ import java.util.TreeSet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -82,7 +86,38 @@ class PortfolioControllerUploadTest {
 
         mockMvc.perform(multipart("/api/portfolio/transactions/upload").file(file))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("type must be BUY or SELL")));
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.detail", containsString("type must be BUY or SELL")));
+    }
+
+    @Test
+    void syncPrices_returnsValidationProblemForMissingStocks() throws Exception {
+        mockMvc.perform(post("/api/portfolio/prices/sync")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.detail", containsString("stocks is required")))
+                .andExpect(jsonPath("$.errors", hasSize(1)));
+    }
+
+    @Test
+    void symbols_returnsDistinctSymbolsFromTransactions() throws Exception {
+        byte[] csvBytes = readResource("sample-transactions.csv");
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "sample-transactions.csv",
+                "text/csv",
+                csvBytes
+        );
+
+        mockMvc.perform(multipart("/api/portfolio/transactions/upload").file(file))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/portfolio/symbols"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasItems("AAPL", "MSFT", "SPY")))
+                .andExpect(jsonPath("$", hasSize(10)));
     }
 
     private byte[] readResource(String resourceName) throws IOException {

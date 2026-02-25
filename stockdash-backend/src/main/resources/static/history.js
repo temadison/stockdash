@@ -4,12 +4,18 @@ const summaryEl = document.getElementById("history-summary");
 const chartWrap = document.getElementById("history-chart-wrap");
 const canvas = document.getElementById("history-chart");
 const tooltip = document.getElementById("chart-tooltip");
+const demoBanner = document.querySelector(".demo-banner");
 
 const demoData = window.StockdashDemoData || null;
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const percent = new Intl.NumberFormat("en-US", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let lastSeries = [];
 let hoverIndex = -1;
+
+function setDemoMode(active) {
+  if (!demoBanner) return;
+  demoBanner.style.display = active ? "" : "none";
+}
 
 function symbolFromQuery() {
   const url = new URL(window.location.href);
@@ -45,7 +51,7 @@ async function fetchJson(url) {
     data = null;
   }
   if (!res.ok) {
-    const msg = data?.message || `Request failed (${res.status})`;
+    const msg = data?.detail || data?.message || `Request failed (${res.status})`;
     throw new Error(msg);
   }
   return data;
@@ -124,10 +130,12 @@ async function loadHistory() {
     let data;
     try {
       data = await fetchJson(apiUrl);
+      setDemoMode(false);
     } catch (err) {
       if (!demoData) throw err;
       data = demoData.history(symbol, startDate || undefined, endDate || undefined);
       fromDemo = true;
+      setDemoMode(true);
     }
 
     const rangeLabel = startDate && endDate
@@ -331,4 +339,5 @@ function formatDateLabel(isoDate) {
   });
 }
 
+setDemoMode(false);
 void loadHistory();

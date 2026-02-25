@@ -10,8 +10,12 @@ import com.temadison.stockdash.backend.service.CsvTransactionImportService;
 import com.temadison.stockdash.backend.service.DailyClosePriceQueryService;
 import com.temadison.stockdash.backend.service.DailyClosePriceSyncService;
 import com.temadison.stockdash.backend.service.PortfolioPerformanceService;
+import com.temadison.stockdash.backend.service.PortfolioSymbolService;
 import com.temadison.stockdash.backend.service.PortfolioSummaryService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,6 +28,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
+@Validated
 @RequestMapping("/api/portfolio")
 public class PortfolioController {
 
@@ -32,19 +37,22 @@ public class PortfolioController {
     private final DailyClosePriceSyncService dailyClosePriceSyncService;
     private final DailyClosePriceQueryService dailyClosePriceQueryService;
     private final PortfolioPerformanceService portfolioPerformanceService;
+    private final PortfolioSymbolService portfolioSymbolService;
 
     public PortfolioController(
             PortfolioSummaryService portfolioSummaryService,
             CsvTransactionImportService csvTransactionImportService,
             DailyClosePriceSyncService dailyClosePriceSyncService,
             DailyClosePriceQueryService dailyClosePriceQueryService,
-            PortfolioPerformanceService portfolioPerformanceService
+            PortfolioPerformanceService portfolioPerformanceService,
+            PortfolioSymbolService portfolioSymbolService
     ) {
         this.portfolioSummaryService = portfolioSummaryService;
         this.csvTransactionImportService = csvTransactionImportService;
         this.dailyClosePriceSyncService = dailyClosePriceSyncService;
         this.dailyClosePriceQueryService = dailyClosePriceQueryService;
         this.portfolioPerformanceService = portfolioPerformanceService;
+        this.portfolioSymbolService = portfolioSymbolService;
     }
 
     @GetMapping("/daily-summary")
@@ -63,13 +71,18 @@ public class PortfolioController {
     }
 
     @PostMapping("/prices/sync")
-    public PriceSyncResult syncDailyClosePrices(@RequestBody PriceSyncRequest request) {
+    public PriceSyncResult syncDailyClosePrices(@Valid @RequestBody PriceSyncRequest request) {
         return dailyClosePriceSyncService.syncForStocks(request.stocks());
+    }
+
+    @GetMapping("/symbols")
+    public List<String> symbols() {
+        return portfolioSymbolService.symbols();
     }
 
     @GetMapping("/prices/history")
     public List<DailyClosePricePoint> dailyClosePriceHistory(
-            @RequestParam("symbol") String symbol,
+            @RequestParam("symbol") @NotBlank(message = "symbol is required.") String symbol,
             @RequestParam(name = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(name = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {

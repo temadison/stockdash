@@ -11,10 +11,16 @@ const syncForm = document.getElementById("sync-form");
 const syncStocks = document.getElementById("sync-stocks");
 const syncSummary = document.getElementById("sync-summary");
 const syncTable = document.getElementById("sync-table");
+const demoBanner = document.querySelector(".demo-banner");
 
 const demoData = window.StockdashDemoData || null;
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 let summaryRequestToken = 0;
+
+function setDemoMode(active) {
+  if (!demoBanner) return;
+  demoBanner.style.display = active ? "" : "none";
+}
 
 function todayIso() {
   const d = new Date();
@@ -38,7 +44,7 @@ async function fetchJson(url, options) {
     data = null;
   }
   if (!res.ok) {
-    const msg = data?.message || `Request failed (${res.status})`;
+    const msg = data?.detail || data?.message || `Request failed (${res.status})`;
     throw new Error(msg);
   }
   return data;
@@ -47,9 +53,11 @@ async function fetchJson(url, options) {
 async function fetchFromApiOrDemo(url, options, demoLoader) {
   try {
     const data = await fetchJson(url, options);
+    setDemoMode(false);
     return { data, fromDemo: false };
   } catch (err) {
     if (!demoData || !demoLoader) throw err;
+    setDemoMode(true);
     return { data: demoLoader(), fromDemo: true };
   }
 }
@@ -110,6 +118,21 @@ async function loadSummary() {
   }
 }
 
+async function loadDefaultSyncSymbols() {
+  try {
+    const { data } = await fetchFromApiOrDemo(
+      "/api/portfolio/symbols",
+      undefined,
+      () => (typeof demoData?.defaultSymbols === "function" ? demoData.defaultSymbols() : [])
+    );
+    if (Array.isArray(data) && data.length) {
+      syncStocks.value = data.join(", ");
+    }
+  } catch (err) {
+    // Keep placeholder when no symbol source is available.
+  }
+}
+
 async function uploadCsv(event) {
   event.preventDefault();
   uploadResult.textContent = "";
@@ -135,6 +158,7 @@ async function uploadCsv(event) {
     }
     if (data) {
       await loadSummary();
+      await loadDefaultSyncSymbols();
     }
   } catch (err) {
     uploadResult.textContent = err.message;
@@ -199,8 +223,10 @@ async function runSync(event) {
 }
 
 summaryDate.value = todayIso();
+setDemoMode(false);
 loadSummaryBtn.addEventListener("click", loadSummary);
 uploadForm.addEventListener("submit", uploadCsv);
 syncForm.addEventListener("submit", runSync);
 
+void loadDefaultSyncSymbols();
 void loadSummary();

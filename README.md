@@ -57,7 +57,7 @@ If no API key is configured, the service falls back to each symbol's last trade 
 - App port supports cloud routing via `PORT`:
   - `server.port=${PORT:18090}`
 - Seed import remains off by default in base config.
-- Included seed file (`stockdash-backend/src/main/resources/seed/transactions.csv`) is synthetic demo data only.
+- Included seed file (`stockdash-backend/src/main/resources/seed/demo-transactions.csv`) is synthetic demo data only.
 
 For a demo deployment (for example `stockdash.temadison.com`), enable demo seed data:
 
@@ -142,15 +142,28 @@ Run backend with MySQL profile:
 ./gradlew :stockdash-backend:bootRunMysql
 ```
 
+Note: `bootRun` and `bootRunMysql` both default to local development profiles:
+- `mysql`
+- `seed-local`
+
 ## Optional Startup Seeding
 
 Seed import is off by default. To seed on app startup from classpath CSV:
 
-1. Put your CSV at `stockdash-backend/src/main/resources/seed/transactions.csv`
-2. Run one command:
+1. Demo seed (tracked):
 
 ```bash
 ./gradlew :stockdash-backend:bootRunSeed
+```
+
+2. Personal local seed (not tracked):
+   - copy `stockdash-backend/src/main/resources/seed/local-transactions.template.csv`
+     to `stockdash-backend/src/main/resources/seed/local-transactions.csv`
+   - put your real transactions in `local-transactions.csv`
+   - run:
+
+```bash
+./gradlew :stockdash-backend:bootRunSeedLocal
 ```
 
 ## IntelliJ Step-By-Step
