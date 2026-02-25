@@ -22,7 +22,28 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:mysql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    exclude '**/*IT.class'
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Runs MySQL-backed integration tests.'
+    group = 'verification'
+    useJUnitPlatform()
+    include '**/*IT.class'
+    shouldRunAfter tasks.named('test')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('integrationTest')
 }
 
 tasks.named('bootRun', org.springframework.boot.gradle.tasks.run.BootRun) {
