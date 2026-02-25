@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java_version: [17, 21]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java_version }}
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon -PjavaVersion=${{ matrix.java_version }} :stockdash-backend:test
+
+      - name: Integration tests (Testcontainers)
+        run: ./gradlew --no-daemon -PjavaVersion=${{ matrix.java_version }} :stockdash-backend:integrationTest
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockdash-backend-test-reports-java${{ matrix.java_version }}
+          path: |
+            stockdash-backend/build/reports/tests
+            stockdash-backend/build/test-results
+          if-no-files-found: warn
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build backend Docker image
+        run: docker build -f stockdash-backend/Dockerfile -t stockdash-backend:ci .

@@ -1,6 +1,8 @@
 group = 'com.temadison'
 version = '1.0-SNAPSHOT'
 
+def targetJavaVersion = ((findProperty("javaVersion") ?: "21") as Integer)
+
 allprojects {
     repositories {
         mavenCentral()
@@ -12,7 +14,7 @@ subprojects {
 
     java {
         toolchain {
-            languageVersion = JavaLanguageVersion.of(21)
+            languageVersion = JavaLanguageVersion.of(targetJavaVersion)
         }
     }
 
