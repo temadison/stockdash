@@ -59,3 +59,37 @@ jobs:
 
       - name: Build backend Docker image
         run: docker build -f stockdash-backend/Dockerfile -t stockdash-backend:ci .
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run OWASP scan + SBOM generation
+        continue-on-error: true
+        run: ./gradlew --no-daemon -PjavaVersion=21 :stockdash-backend:securityScan
+
+      - name: Upload security artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockdash-backend-security-artifacts
+          path: |
+            stockdash-backend/build/reports/dependency-check-report.html
+            stockdash-backend/build/reports/dependency-check-report.json
+            stockdash-backend/build/reports/bom.json
+            stockdash-backend/build/reports/bom.xml
+          if-no-files-found: warn

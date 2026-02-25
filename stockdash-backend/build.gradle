@@ -3,6 +3,8 @@ plugins {
     id 'io.spring.dependency-management' version '1.1.7'
     id 'java'
     id 'jacoco'
+    id 'org.owasp.dependencycheck' version '12.1.0'
+    id 'org.cyclonedx.bom' version '1.10.0'
 }
 
 def resolveGitCommit = {
@@ -96,6 +98,24 @@ tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification) {
 tasks.named('check') {
     dependsOn tasks.named('integrationTest')
     dependsOn tasks.named('jacocoTestCoverageVerification')
+}
+
+dependencyCheck {
+    failBuildOnCVSS = 11.0
+    formats = ['HTML', 'JSON']
+    nvd {
+        apiKey = (System.getenv('NVD_API_KEY') ?: (findProperty('nvdApiKey') as String)) ?: ''
+    }
+    analyzers {
+        assemblyEnabled = false
+    }
+}
+
+tasks.register('securityScan') {
+    description = 'Runs dependency vulnerability scan and generates SBOM.'
+    group = 'verification'
+    dependsOn tasks.named('dependencyCheckAnalyze')
+    dependsOn tasks.named('cyclonedxBom')
 }
 
 tasks.named('bootJar') {

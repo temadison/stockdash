@@ -142,6 +142,20 @@ Coverage reports are written to:
 
 Performance smoke tests for key read endpoints (`/api/portfolio/daily-summary`, `/api/portfolio/performance`) run as part of `:stockdash-backend:test`.
 
+### Security Scanning And SBOM
+
+Run dependency vulnerability scan (OWASP Dependency-Check) and generate CycloneDX SBOM:
+
+```bash
+./gradlew :stockdash-backend:securityScan
+```
+
+Generated artifacts:
+- `stockdash-backend/build/reports/dependency-check-report.html`
+- `stockdash-backend/build/reports/dependency-check-report.json`
+- `stockdash-backend/build/reports/bom.json`
+- `stockdash-backend/build/reports/bom.xml`
+
 Build backend artifact:
 
 ```bash
