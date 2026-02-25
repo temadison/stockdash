@@ -10,7 +10,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Service
-public class DailyClosePriceQueryService {
+public class DailyClosePriceQueryService implements PriceHistoryService {
 
     private final DailyClosePriceRepository dailyClosePriceRepository;
 
@@ -18,6 +18,7 @@ public class DailyClosePriceQueryService {
         this.dailyClosePriceRepository = dailyClosePriceRepository;
     }
 
+    @Override
     @Transactional(readOnly = true)
     public List<DailyClosePricePoint> history(String rawSymbol, LocalDate startDate, LocalDate endDate) {
         if (rawSymbol == null || rawSymbol.isBlank()) {

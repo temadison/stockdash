@@ -6,12 +6,12 @@ import com.temadison.stockdash.backend.model.DailyClosePricePoint;
 import com.temadison.stockdash.backend.model.PortfolioPerformancePoint;
 import com.temadison.stockdash.backend.model.PriceSyncRequest;
 import com.temadison.stockdash.backend.model.PriceSyncResult;
-import com.temadison.stockdash.backend.service.CsvTransactionImportService;
-import com.temadison.stockdash.backend.service.DailyClosePriceQueryService;
-import com.temadison.stockdash.backend.service.DailyClosePriceSyncService;
-import com.temadison.stockdash.backend.service.PortfolioPerformanceService;
-import com.temadison.stockdash.backend.service.PortfolioSymbolService;
-import com.temadison.stockdash.backend.service.PortfolioSummaryService;
+import com.temadison.stockdash.backend.service.CsvImportService;
+import com.temadison.stockdash.backend.service.PortfolioPerformanceQueryService;
+import com.temadison.stockdash.backend.service.PortfolioSummaryQueryService;
+import com.temadison.stockdash.backend.service.PortfolioSymbolQueryService;
+import com.temadison.stockdash.backend.service.PriceHistoryService;
+import com.temadison.stockdash.backend.service.PriceSyncService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -32,20 +32,20 @@ import java.util.List;
 @RequestMapping("/api/portfolio")
 public class PortfolioController {
 
-    private final PortfolioSummaryService portfolioSummaryService;
-    private final CsvTransactionImportService csvTransactionImportService;
-    private final DailyClosePriceSyncService dailyClosePriceSyncService;
-    private final DailyClosePriceQueryService dailyClosePriceQueryService;
-    private final PortfolioPerformanceService portfolioPerformanceService;
-    private final PortfolioSymbolService portfolioSymbolService;
+    private final PortfolioSummaryQueryService portfolioSummaryService;
+    private final CsvImportService csvTransactionImportService;
+    private final PriceSyncService dailyClosePriceSyncService;
+    private final PriceHistoryService dailyClosePriceQueryService;
+    private final PortfolioPerformanceQueryService portfolioPerformanceService;
+    private final PortfolioSymbolQueryService portfolioSymbolService;
 
     public PortfolioController(
-            PortfolioSummaryService portfolioSummaryService,
-            CsvTransactionImportService csvTransactionImportService,
-            DailyClosePriceSyncService dailyClosePriceSyncService,
-            DailyClosePriceQueryService dailyClosePriceQueryService,
-            PortfolioPerformanceService portfolioPerformanceService,
-            PortfolioSymbolService portfolioSymbolService
+            PortfolioSummaryQueryService portfolioSummaryService,
+            CsvImportService csvTransactionImportService,
+            PriceSyncService dailyClosePriceSyncService,
+            PriceHistoryService dailyClosePriceQueryService,
+            PortfolioPerformanceQueryService portfolioPerformanceService,
+            PortfolioSymbolQueryService portfolioSymbolService
     ) {
         this.portfolioSummaryService = portfolioSummaryService;
         this.csvTransactionImportService = csvTransactionImportService;

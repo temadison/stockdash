@@ -1,7 +1,7 @@
 package com.temadison.stockdash.backend.seed;
 
 import com.temadison.stockdash.backend.exception.CsvImportException;
-import com.temadison.stockdash.backend.service.CsvTransactionImportService;
+import com.temadison.stockdash.backend.service.CsvImportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -16,9 +16,9 @@ public class SeedDataRunner implements CommandLineRunner {
     private static final Logger logger = LoggerFactory.getLogger(SeedDataRunner.class);
 
     private final SeedProperties seedProperties;
-    private final CsvTransactionImportService csvTransactionImportService;
+    private final CsvImportService csvTransactionImportService;
 
-    public SeedDataRunner(SeedProperties seedProperties, CsvTransactionImportService csvTransactionImportService) {
+    public SeedDataRunner(SeedProperties seedProperties, CsvImportService csvTransactionImportService) {
         this.seedProperties = seedProperties;
         this.csvTransactionImportService = csvTransactionImportService;
     }

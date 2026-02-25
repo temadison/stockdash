@@ -34,7 +34,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
-public class CsvTransactionImportService {
+public class CsvTransactionImportService implements CsvImportService {
 
     private static final String HEADER_TRADE_DATE = "trade_date";
     private static final String HEADER_ACCOUNT = "account";
@@ -65,6 +65,7 @@ public class CsvTransactionImportService {
         this.tradeTransactionRepository = tradeTransactionRepository;
     }
 
+    @Override
     @Transactional
     public CsvUploadResult importCsv(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -77,6 +78,7 @@ public class CsvTransactionImportService {
         }
     }
 
+    @Override
     @Transactional
     public CsvUploadResult importCsv(InputStream inputStream) {
         if (inputStream == null) {

@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
-public class PortfolioSymbolService {
+public class PortfolioSymbolService implements PortfolioSymbolQueryService {
 
     private final TradeTransactionRepository tradeTransactionRepository;
 
@@ -15,6 +15,7 @@ public class PortfolioSymbolService {
         this.tradeTransactionRepository = tradeTransactionRepository;
     }
 
+    @Override
     @Transactional(readOnly = true)
     public List<String> symbols() {
         return tradeTransactionRepository.findDistinctSymbolsOrderBySymbolAsc();

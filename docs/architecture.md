@@ -10,9 +10,11 @@
 ## Backend Layers
 
 - API controllers: HTTP routing and input validation (`/api/portfolio/*`)
-- Services: business workflows (CSV import, price sync, summary/performance calculations)
+- Service ports (interfaces): controller/scheduler/seed depend on abstractions (`CsvImportService`, `PriceSyncService`, query services)
+- Service implementations: business workflows (CSV import, price sync, summary/performance calculations)
 - Repositories: Spring Data JPA persistence access
 - Integration adapters: market data clients + request limiting + resilience policies
+- Service support types: shared valuation primitives (for example, `PositionAccumulator`) to avoid duplicated state logic
 
 ## Data Model
 

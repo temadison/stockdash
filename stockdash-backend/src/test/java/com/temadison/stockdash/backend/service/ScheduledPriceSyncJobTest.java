@@ -19,8 +19,8 @@ class ScheduledPriceSyncJobTest {
 
     @Test
     void doesNotRunSyncWhenNoSymbolsFound() {
-        PortfolioSymbolService portfolioSymbolService = mock(PortfolioSymbolService.class);
-        DailyClosePriceSyncService dailyClosePriceSyncService = mock(DailyClosePriceSyncService.class);
+        PortfolioSymbolQueryService portfolioSymbolService = mock(PortfolioSymbolQueryService.class);
+        PriceSyncService dailyClosePriceSyncService = mock(PriceSyncService.class);
         when(portfolioSymbolService.symbols()).thenReturn(List.of());
 
         ScheduledPriceSyncJob job = new ScheduledPriceSyncJob(portfolioSymbolService, dailyClosePriceSyncService);
@@ -31,8 +31,8 @@ class ScheduledPriceSyncJobTest {
 
     @Test
     void runsSyncWhenSymbolsExist() {
-        PortfolioSymbolService portfolioSymbolService = mock(PortfolioSymbolService.class);
-        DailyClosePriceSyncService dailyClosePriceSyncService = mock(DailyClosePriceSyncService.class);
+        PortfolioSymbolQueryService portfolioSymbolService = mock(PortfolioSymbolQueryService.class);
+        PriceSyncService dailyClosePriceSyncService = mock(PriceSyncService.class);
         when(portfolioSymbolService.symbols()).thenReturn(List.of("AAPL", "MSFT"));
         when(dailyClosePriceSyncService.syncForStocks(List.of("AAPL", "MSFT")))
                 .thenReturn(new PriceSyncResult(2, 2, 5, Map.of("AAPL", 3, "MSFT", 2), Map.of(), List.of()));
@@ -45,8 +45,8 @@ class ScheduledPriceSyncJobTest {
 
     @Test
     void skipsRunWhenAnotherSyncIsInProgress() throws Exception {
-        PortfolioSymbolService portfolioSymbolService = mock(PortfolioSymbolService.class);
-        DailyClosePriceSyncService dailyClosePriceSyncService = mock(DailyClosePriceSyncService.class);
+        PortfolioSymbolQueryService portfolioSymbolService = mock(PortfolioSymbolQueryService.class);
+        PriceSyncService dailyClosePriceSyncService = mock(PriceSyncService.class);
         ScheduledPriceSyncJob job = new ScheduledPriceSyncJob(portfolioSymbolService, dailyClosePriceSyncService);
 
         Field field = ScheduledPriceSyncJob.class.getDeclaredField("syncInProgress");

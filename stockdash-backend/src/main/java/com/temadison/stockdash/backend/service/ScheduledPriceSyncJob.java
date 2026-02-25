@@ -16,13 +16,13 @@ public class ScheduledPriceSyncJob {
 
     private static final Logger log = LoggerFactory.getLogger(ScheduledPriceSyncJob.class);
 
-    private final PortfolioSymbolService portfolioSymbolService;
-    private final DailyClosePriceSyncService dailyClosePriceSyncService;
+    private final PortfolioSymbolQueryService portfolioSymbolService;
+    private final PriceSyncService dailyClosePriceSyncService;
     private final AtomicBoolean syncInProgress = new AtomicBoolean(false);
 
     public ScheduledPriceSyncJob(
-            PortfolioSymbolService portfolioSymbolService,
-            DailyClosePriceSyncService dailyClosePriceSyncService
+            PortfolioSymbolQueryService portfolioSymbolService,
+            PriceSyncService dailyClosePriceSyncService
     ) {
         this.portfolioSymbolService = portfolioSymbolService;
         this.dailyClosePriceSyncService = dailyClosePriceSyncService;

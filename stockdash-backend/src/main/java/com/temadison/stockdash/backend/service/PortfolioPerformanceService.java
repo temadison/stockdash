@@ -2,11 +2,11 @@ package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.domain.DailyClosePriceEntity;
 import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
-import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.model.PortfolioPerformancePoint;
 import com.temadison.stockdash.backend.model.StockPerformanceValue;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
+import com.temadison.stockdash.backend.service.support.PositionAccumulator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class PortfolioPerformanceService {
+public class PortfolioPerformanceService implements PortfolioPerformanceQueryService {
 
     private final TradeTransactionRepository tradeTransactionRepository;
     private final DailyClosePriceRepository dailyClosePriceRepository;
@@ -33,6 +33,7 @@ public class PortfolioPerformanceService {
         this.dailyClosePriceRepository = dailyClosePriceRepository;
     }
 
+    @Override
     @Transactional(readOnly = true)
     public List<PortfolioPerformancePoint> performance(String accountName, LocalDate startDate, LocalDate endDate) {
         LocalDate resolvedEnd = endDate == null ? LocalDate.now() : endDate;
@@ -63,28 +64,25 @@ public class PortfolioPerformanceService {
             while (txIndex < transactions.size() && !transactions.get(txIndex).getTradeDate().isAfter(day)) {
                 TradeTransactionEntity tx = transactions.get(txIndex);
                 PositionAccumulator acc = positions.computeIfAbsent(tx.getSymbol(), ignored -> new PositionAccumulator());
-                BigDecimal signedQty = tx.getType() == TransactionType.BUY ? tx.getQuantity() : tx.getQuantity().negate();
-                acc.netQuantity = acc.netQuantity.add(signedQty);
-                acc.totalFees = acc.totalFees.add(tx.getFee());
-                acc.lastKnownPrice = tx.getPrice();
+                acc.apply(tx);
                 txIndex++;
             }
 
             List<StockPerformanceValue> stocks = new ArrayList<>();
             BigDecimal total = BigDecimal.ZERO;
             for (Map.Entry<String, PositionAccumulator> entry : positions.entrySet()) {
-                if (entry.getValue().netQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+                if (entry.getValue().netQuantity().compareTo(BigDecimal.ZERO) <= 0) {
                     continue;
                 }
                 String symbol = entry.getKey();
                 BigDecimal close = closeOnOrBefore(day, symbol, closesBySymbol, closeCursorBySymbol, latestCloseBySymbol);
                 if (close == null) {
-                    close = entry.getValue().lastKnownPrice;
+                    close = entry.getValue().lastKnownPrice();
                 }
 
-                BigDecimal value = entry.getValue().netQuantity
+                BigDecimal value = entry.getValue().netQuantity()
                         .multiply(close)
-                        .subtract(entry.getValue().totalFees)
+                        .subtract(entry.getValue().totalFees())
                         .setScale(2, RoundingMode.HALF_UP);
                 stocks.add(new StockPerformanceValue(symbol, value));
                 total = total.add(value);
@@ -135,11 +133,5 @@ public class PortfolioPerformanceService {
         }
         closeCursorBySymbol.put(symbol, cursor);
         return latestCloseBySymbol.get(symbol);
-    }
-
-    private static class PositionAccumulator {
-        private BigDecimal netQuantity = BigDecimal.ZERO;
-        private BigDecimal totalFees = BigDecimal.ZERO;
-        private BigDecimal lastKnownPrice = BigDecimal.ZERO;
     }
 }

@@ -1,12 +1,12 @@
 package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
-import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.model.PortfolioSnapshot;
 import com.temadison.stockdash.backend.model.PositionValue;
 import com.temadison.stockdash.backend.pricing.MarketPriceService;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
+import com.temadison.stockdash.backend.service.support.PositionAccumulator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
-public class PortfolioSummaryService {
+public class PortfolioSummaryService implements PortfolioSummaryQueryService {
 
     private final TradeTransactionRepository tradeTransactionRepository;
     private final DailyClosePriceRepository dailyClosePriceRepository;
@@ -37,6 +37,7 @@ public class PortfolioSummaryService {
         this.marketPriceService = marketPriceService;
     }
 
+    @Override
     @Transactional(readOnly = true)
     public List<PortfolioSnapshot> getDailySummary(LocalDate asOfDate) {
         List<TradeTransactionEntity> transactions = tradeTransactionRepository
@@ -49,12 +50,7 @@ public class PortfolioSummaryService {
 
             Map<String, PositionAccumulator> bySymbol = byAccount.computeIfAbsent(accountName, ignored -> new HashMap<>());
             PositionAccumulator accumulator = bySymbol.computeIfAbsent(symbol, ignored -> new PositionAccumulator());
-
-            BigDecimal quantity = transaction.getQuantity();
-            BigDecimal signedQuantity = transaction.getType() == TransactionType.BUY ? quantity : quantity.negate();
-            accumulator.netQuantity = accumulator.netQuantity.add(signedQuantity);
-            accumulator.lastKnownPrice = transaction.getPrice();
-            accumulator.totalFees = accumulator.totalFees.add(transaction.getFee());
+            accumulator.apply(transaction);
         }
 
         Map<String, BigDecimal> closePriceBySymbol = new HashMap<>();
@@ -63,7 +59,7 @@ public class PortfolioSummaryService {
             List<PositionValue> positions = accountEntry.getValue().entrySet().stream()
                     .map(entry -> {
                         PositionAccumulator acc = entry.getValue();
-                        if (acc.netQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+                        if (acc.netQuantity().compareTo(BigDecimal.ZERO) <= 0) {
                             return null;
                         }
 
@@ -75,14 +71,14 @@ public class PortfolioSummaryService {
                                 return storedClose.get();
                             }
                             Optional<BigDecimal> marketClose = marketPriceService.getClosePriceOnOrBefore(symbol, asOfDate);
-                            return marketClose.orElse(acc.lastKnownPrice);
+                            return marketClose.orElse(acc.lastKnownPrice());
                         });
 
-                        BigDecimal positionValue = acc.netQuantity
+                        BigDecimal positionValue = acc.netQuantity()
                                 .multiply(closePrice)
-                                .subtract(acc.totalFees)
+                                .subtract(acc.totalFees())
                                 .setScale(2, RoundingMode.HALF_UP);
-                        return new PositionValue(entry.getKey(), acc.netQuantity.longValueExact(), closePrice, positionValue);
+                        return new PositionValue(entry.getKey(), acc.netQuantity().longValueExact(), closePrice, positionValue);
                     })
                     .filter(position -> position != null)
                     .sorted(Comparator.comparing(PositionValue::symbol))
@@ -101,9 +97,4 @@ public class PortfolioSummaryService {
                 .toList();
     }
 
-    private static class PositionAccumulator {
-        private BigDecimal netQuantity = BigDecimal.ZERO;
-        private BigDecimal lastKnownPrice = BigDecimal.ZERO;
-        private BigDecimal totalFees = BigDecimal.ZERO;
-    }
 }

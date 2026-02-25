@@ -27,7 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-public class DailyClosePriceSyncService {
+public class DailyClosePriceSyncService implements PriceSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(DailyClosePriceSyncService.class);
 
@@ -55,6 +55,7 @@ public class DailyClosePriceSyncService {
         this.localFallbackLookbackDays = localFallbackLookbackDays;
     }
 
+    @Override
     public PriceSyncResult syncForStocks(List<String> stocks) {
         List<String> normalizedSymbols = normalizeStocks(stocks);
         Map<String, LocalDate> firstBuyDateBySymbol = firstBuyDatesBySymbol(normalizedSymbols);
