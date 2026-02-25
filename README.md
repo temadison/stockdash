@@ -131,6 +131,15 @@ Run the full backend verification pipeline (unit + integration tests):
 ./gradlew :stockdash-backend:check
 ```
 
+Generate JaCoCo coverage report and enforce the line-coverage gate:
+
+```bash
+./gradlew :stockdash-backend:jacocoTestCoverageVerification
+```
+
+Coverage reports are written to:
+- `stockdash-backend/build/reports/jacoco/test/html/index.html`
+
 Build backend artifact:
 
 ```bash

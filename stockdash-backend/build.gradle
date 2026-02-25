@@ -2,6 +2,7 @@ plugins {
     id 'org.springframework.boot' version '3.5.11'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'java'
+    id 'jacoco'
 }
 
 def resolveGitCommit = {
@@ -52,6 +53,7 @@ dependencies {
 tasks.named('test', Test) {
     useJUnitPlatform()
     exclude '**/*IT.class'
+    finalizedBy tasks.named('jacocoTestReport')
 }
 
 tasks.register('integrationTest', Test) {
@@ -64,8 +66,36 @@ tasks.register('integrationTest', Test) {
     classpath = sourceSets.test.runtimeClasspath
 }
 
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+tasks.named('jacocoTestReport', JacocoReport) {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('jacocoTestReport')
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.40
+            }
+        }
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('integrationTest')
+    dependsOn tasks.named('jacocoTestCoverageVerification')
 }
 
 tasks.named('bootJar') {
