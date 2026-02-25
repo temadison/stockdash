@@ -19,7 +19,7 @@ This keeps things easy to learn while staying modular and scalable.
 
 ## What Works Right Now
 
-- `GET /api/health` -> basic health check
+- `GET /actuator/health` -> service health check
 - `GET /api/portfolio/daily-summary?date=YYYY-MM-DD` -> transaction-based daily account summary (as-of date)
 - `POST /api/portfolio/transactions/upload` -> upload buys/sells CSV (persists accounts + trades)
 - `POST /api/portfolio/prices/sync` -> pull/store daily closes for a `stocks` array (stores only dates after each symbol's first `BUY` trade date)
@@ -99,7 +99,7 @@ Required headers:
 
 Then open:
 
-- `http://localhost:18090/api/health`
+- `http://localhost:18090/actuator/health`
 - `http://localhost:18090/api/portfolio/daily-summary?date=2026-02-16`
 
 Example upload:
@@ -132,7 +132,7 @@ Set credentials:
 
 ```bash
 export STOCKDASH_DB_URL="jdbc:mysql://localhost:3306/stockdash?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
-export STOCKDASH_DB_USERNAME="stockdash-app"
+export STOCKDASH_DB_USERNAME="stockdash_app"
 export STOCKDASH_DB_PASSWORD="your_mysql_password"
 ```
 
@@ -166,6 +166,13 @@ Seed import is off by default. To seed on app startup from classpath CSV:
 ./gradlew :stockdash-backend:bootRunSeedLocal
 ```
 
+If you edit `local-transactions.csv` and need corrected rows to replace existing data, reset the DB first (seed import is append/idempotent and does not update existing rows):
+
+```bash
+mysql -u root -p -e "DROP DATABASE IF EXISTS stockdash; CREATE DATABASE stockdash;"
+./gradlew :stockdash-backend:bootRunMysql
+```
+
 ## IntelliJ Step-By-Step
 
 1. Open IntelliJ IDEA.
@@ -177,7 +184,7 @@ Seed import is off by default. To seed on app startup from classpath CSV:
 6. Run the backend:
    - Gradle -> `stockdash-backend` -> `Tasks` -> `application` -> `bootRun`.
 7. Verify endpoints in browser/Postman:
-   - `GET /api/health`
+   - `GET /actuator/health`
    - `GET /api/portfolio/daily-summary?date=2026-02-16`
 
 ## Next Build Steps
