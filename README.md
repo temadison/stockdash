@@ -17,12 +17,18 @@ This keeps things easy to learn while staying modular and scalable.
 - `stockdash-backend`: runnable Spring Boot API
 - `stockdash-frontend`: placeholder module for upcoming UI work
 
+## Documentation
+
+- Architecture: [docs/architecture.md](docs/architecture.md)
+- Deploy/runbook: [docs/deploy.md](docs/deploy.md)
+
 ## What Works Right Now
 
 - `GET /actuator/health` -> service health check
 - `GET /api/portfolio/daily-summary?date=YYYY-MM-DD` -> transaction-based daily account summary (as-of date)
 - `POST /api/portfolio/transactions/upload` -> upload buys/sells CSV (persists accounts + trades)
 - `POST /api/portfolio/prices/sync` -> pull/store daily closes for a `stocks` array (stores only dates after each symbol's first `BUY` trade date)
+- `GET /v3/api-docs` + `GET /swagger-ui/index.html` -> OpenAPI contract and interactive docs
 
 Example sync request:
 
@@ -30,6 +36,14 @@ Example sync request:
 curl -X POST http://localhost:18090/api/portfolio/prices/sync \
   -H "Content-Type: application/json" \
   -d '{"stocks":["AAPL","MSFT","ASML"]}'
+```
+
+Validation error example:
+
+```bash
+curl -i -X POST http://localhost:18090/api/portfolio/prices/sync \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 Daily summary valuation currently uses:
