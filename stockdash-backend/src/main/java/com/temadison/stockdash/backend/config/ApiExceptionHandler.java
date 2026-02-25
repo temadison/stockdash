@@ -39,7 +39,7 @@ public class ApiExceptionHandler {
         List<String> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .toList();
-        String detail = errors.isEmpty() ? "Request validation failed." : errors.getFirst();
+        String detail = errors.isEmpty() ? "Request validation failed." : errors.get(0);
 
         ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "Bad Request", detail, request);
         problem.setProperty("errors", errors);
@@ -54,7 +54,7 @@ public class ApiExceptionHandler {
         List<String> errors = ex.getAllErrors().stream()
                 .map(error -> error.getDefaultMessage() == null ? error.toString() : error.getDefaultMessage())
                 .toList();
-        String detail = errors.isEmpty() ? "Request validation failed." : errors.getFirst();
+        String detail = errors.isEmpty() ? "Request validation failed." : errors.get(0);
 
         ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "Bad Request", detail, request);
         problem.setProperty("errors", errors);
@@ -66,7 +66,7 @@ public class ApiExceptionHandler {
         List<String> errors = ex.getConstraintViolations().stream()
                 .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
                 .toList();
-        String detail = errors.isEmpty() ? "Request validation failed." : errors.getFirst();
+        String detail = errors.isEmpty() ? "Request validation failed." : errors.get(0);
 
         ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "Bad Request", detail, request);
         problem.setProperty("errors", errors);

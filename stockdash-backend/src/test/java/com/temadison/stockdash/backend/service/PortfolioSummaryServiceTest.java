@@ -72,7 +72,7 @@ class PortfolioSummaryServiceTest {
         List<PortfolioSnapshot> beforeSellAndMsft = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 9));
         assertThat(beforeSellAndMsft).hasSize(1);
 
-        PortfolioSnapshot snapshotBefore = beforeSellAndMsft.getFirst();
+        PortfolioSnapshot snapshotBefore = beforeSellAndMsft.get(0);
         assertThat(snapshotBefore.accountName()).isEqualTo("IRA");
         assertThat(snapshotBefore.totalValue()).isEqualByComparingTo(new BigDecimal("1798.00"));
         assertThat(snapshotBefore.positions()).containsExactly(new PositionValue(
@@ -85,7 +85,7 @@ class PortfolioSummaryServiceTest {
         List<PortfolioSnapshot> afterAllTrades = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 15));
         assertThat(afterAllTrades).hasSize(1);
 
-        PortfolioSnapshot snapshotAfter = afterAllTrades.getFirst();
+        PortfolioSnapshot snapshotAfter = afterAllTrades.get(0);
         assertThat(snapshotAfter.totalValue()).isEqualByComparingTo(new BigDecimal("1955.00"));
         assertThat(snapshotAfter.positions()).containsExactly(
                 new PositionValue("AAPL", 12L, new BigDecimal("130.000000"), new BigDecimal("1557.00")),
@@ -112,7 +112,7 @@ class PortfolioSummaryServiceTest {
                 .willReturn(Optional.of(new BigDecimal("140.00")));
 
         List<PortfolioSnapshot> snapshots = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 15));
-        PortfolioSnapshot snapshot = snapshots.getFirst();
+        PortfolioSnapshot snapshot = snapshots.get(0);
 
         // 12 shares * market close 140 - total fees 3
         assertThat(snapshot.positions()).containsExactly(new PositionValue(
@@ -153,8 +153,8 @@ class PortfolioSummaryServiceTest {
         jan5.setClosePrice(new BigDecimal("140.00"));
         dailyClosePriceRepository.saveAll(List.of(jan2, jan5));
 
-        PortfolioSnapshot jan3 = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 3)).getFirst();
-        PortfolioSnapshot jan6 = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 6)).getFirst();
+        PortfolioSnapshot jan3 = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 3)).get(0);
+        PortfolioSnapshot jan6 = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 6)).get(0);
 
         assertThat(jan3.positions()).containsExactly(new PositionValue(
                 "AAPL",

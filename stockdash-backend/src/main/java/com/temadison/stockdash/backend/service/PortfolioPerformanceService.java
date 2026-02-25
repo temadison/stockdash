@@ -45,7 +45,7 @@ public class PortfolioPerformanceService {
             return List.of();
         }
 
-        LocalDate earliestTradeDate = transactions.getFirst().getTradeDate();
+        LocalDate earliestTradeDate = transactions.get(0).getTradeDate();
         LocalDate resolvedStart = startDate == null ? earliestTradeDate : startDate;
         if (resolvedStart.isAfter(resolvedEnd)) {
             throw new IllegalArgumentException("startDate must be on or before endDate.");
