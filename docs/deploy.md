@@ -20,6 +20,9 @@ Optional:
 - `PORT`: listener port (default `18090`)
 - `STOCKDASH_SEED_ENABLED`: set `true` only for demo-style bootstraps
 - `STOCKDASH_PRICING_ALPHA_VANTAGE_API_KEY`: market data API key
+- `STOCKDASH_PRICING_SYNC_ENABLED`: enable scheduled sync job (`false` by default)
+- `STOCKDASH_PRICING_SYNC_CRON`: cron for scheduled sync (default: `0 0 22 * * MON-FRI`)
+- `STOCKDASH_PRICING_SYNC_ZONE`: timezone for cron evaluation (default: `UTC`)
 
 Recommended local DB username convention: `stockdash_app`.
 
