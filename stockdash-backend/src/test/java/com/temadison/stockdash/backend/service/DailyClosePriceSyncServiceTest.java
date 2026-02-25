@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
-@SpringBootTest
+@SpringBootTest(properties = "stockdash.pricing.local-fallback-enabled=true")
 class DailyClosePriceSyncServiceTest {
 
     @Autowired
@@ -104,5 +104,29 @@ class DailyClosePriceSyncServiceTest {
         assertThat(dailyClosePriceRepository.findBySymbolOrderByPriceDateAsc("MSFT"))
                 .extracting(price -> price.getPriceDate().toString())
                 .containsExactly("2026-01-06");
+    }
+
+    @Test
+    void syncForStocks_usesLocalFallbackWhenRateLimited() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "sync-fixture.csv",
+                "text/csv",
+                (
+                        "trade_date,account,symbol,type,quantity,price,fee\n" +
+                                "2026-01-01,IRA,AAPL,BUY,10,100,1\n" +
+                                "2026-01-08,IRA,AAPL,BUY,5,110,1\n"
+                ).getBytes()
+        );
+        csvTransactionImportService.importCsv(file);
+
+        given(alphaVantageDailySeriesClient.fetchDailyCloseSeries("AAPL"))
+                .willReturn(new SeriesFetchResult(Map.of(), SeriesFetchStatus.RATE_LIMITED));
+
+        PriceSyncResult result = dailyClosePriceSyncService.syncForStocks(List.of("AAPL"));
+
+        assertThat(result.pricesStored()).isGreaterThan(0);
+        assertThat(result.statusBySymbol()).containsEntry("AAPL", "local_fallback_stored");
+        assertThat(dailyClosePriceRepository.findBySymbolOrderByPriceDateAsc("AAPL")).isNotEmpty();
     }
 }

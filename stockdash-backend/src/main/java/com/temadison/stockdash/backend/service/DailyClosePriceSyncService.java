@@ -12,6 +12,7 @@ import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
@@ -33,16 +34,25 @@ public class DailyClosePriceSyncService {
     private final TradeTransactionRepository tradeTransactionRepository;
     private final DailyClosePriceRepository dailyClosePriceRepository;
     private final AlphaVantageDailySeriesClient alphaVantageDailySeriesClient;
+    private final LocalDailyClosePriceFallbackService localDailyClosePriceFallbackService;
+    private final boolean localFallbackEnabled;
+    private final int localFallbackLookbackDays;
     private final Map<String, Object> symbolSyncLocks = new ConcurrentHashMap<>();
 
     public DailyClosePriceSyncService(
             TradeTransactionRepository tradeTransactionRepository,
             DailyClosePriceRepository dailyClosePriceRepository,
-            AlphaVantageDailySeriesClient alphaVantageDailySeriesClient
+            AlphaVantageDailySeriesClient alphaVantageDailySeriesClient,
+            LocalDailyClosePriceFallbackService localDailyClosePriceFallbackService,
+            @Value("${stockdash.pricing.local-fallback-enabled:false}") boolean localFallbackEnabled,
+            @Value("${stockdash.pricing.local-fallback-lookback-days:365}") int localFallbackLookbackDays
     ) {
         this.tradeTransactionRepository = tradeTransactionRepository;
         this.dailyClosePriceRepository = dailyClosePriceRepository;
         this.alphaVantageDailySeriesClient = alphaVantageDailySeriesClient;
+        this.localDailyClosePriceFallbackService = localDailyClosePriceFallbackService;
+        this.localFallbackEnabled = localFallbackEnabled;
+        this.localFallbackLookbackDays = localFallbackLookbackDays;
     }
 
     public PriceSyncResult syncForStocks(List<String> stocks) {
@@ -77,6 +87,11 @@ public class DailyClosePriceSyncService {
 
                 SeriesFetchResult fetchResult = alphaVantageDailySeriesClient.fetchDailyCloseSeries(symbol);
                 Map<LocalDate, BigDecimal> dailySeries = fetchResult.series();
+                boolean usedLocalFallback = false;
+                if (dailySeries.isEmpty() && shouldUseLocalFallback(fetchResult.status())) {
+                    dailySeries = localDailyClosePriceFallbackService.generateSeries(symbol, firstBuyDate, localFallbackLookbackDays);
+                    usedLocalFallback = !dailySeries.isEmpty();
+                }
                 if (dailySeries.isEmpty()) {
                     storedBySymbol.put(symbol, 0);
                     statusBySymbol.put(symbol, mapFetchStatus(fetchResult.status()));
@@ -103,7 +118,7 @@ public class DailyClosePriceSyncService {
 
                 int inserted = saveIgnoringDuplicates(symbol, toSave);
                 storedBySymbol.put(symbol, inserted);
-                statusBySymbol.put(symbol, inserted == 0 ? "no_new_rows" : "stored");
+                statusBySymbol.put(symbol, statusForPersistResult(inserted, usedLocalFallback));
                 pricesStored += inserted;
             }
         }
@@ -161,6 +176,22 @@ public class DailyClosePriceSyncService {
             case NO_DATA -> "no_data";
             case SUCCESS -> "no_data";
         };
+    }
+
+    private boolean shouldUseLocalFallback(SeriesFetchStatus status) {
+        if (!localFallbackEnabled) {
+            return false;
+        }
+        return status == SeriesFetchStatus.RATE_LIMITED
+                || status == SeriesFetchStatus.API_ERROR
+                || status == SeriesFetchStatus.CIRCUIT_OPEN;
+    }
+
+    private String statusForPersistResult(int inserted, boolean usedLocalFallback) {
+        if (usedLocalFallback) {
+            return inserted == 0 ? "local_fallback_no_new_rows" : "local_fallback_stored";
+        }
+        return inserted == 0 ? "no_new_rows" : "stored";
     }
 
     private int saveIgnoringDuplicates(String symbol, List<DailyClosePriceEntity> toSave) {

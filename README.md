@@ -146,6 +146,8 @@ Note: `bootRun` and `bootRunMysql` both default to local development profiles:
 - `mysql`
 - `seed-local`
 
+With `seed-local`, dev fallback price generation is enabled (`stockdash.pricing.local-fallback-enabled=true`), so `/api/portfolio/prices/sync` can populate local `daily_close_prices` even when Alpha Vantage is rate-limited.
+
 ## Optional Startup Seeding
 
 Seed import is off by default. To seed on app startup from classpath CSV:
