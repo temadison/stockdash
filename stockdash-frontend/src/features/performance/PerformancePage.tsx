@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { PortfolioPerformancePointDto } from '../../shared/types/api';
 import { getPerformance } from '../../shared/api/portfolioApi';
 import { PageShell } from '../../shared/ui/PageShell';
@@ -7,6 +7,7 @@ import { money, percent } from '../../shared/utils/format';
 import { computeCagr, computeReturn } from '../../shared/utils/analytics';
 
 export function PerformancePage() {
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const queryAccount = useMemo(() => params.get('account') ?? '', [params]);
   const queryStart = useMemo(() => params.get('startDate') ?? '', [params]);
@@ -70,6 +71,14 @@ export function PerformancePage() {
 
   const colors = ['#0f766e', '#2563eb', '#d97706', '#be185d', '#16a34a', '#9333ea', '#0284c7'];
 
+  const applyFilters = () => {
+    const next = new URLSearchParams();
+    if (account) next.set('account', account);
+    if (startDate) next.set('startDate', startDate);
+    if (endDate) next.set('endDate', endDate);
+    navigate(`/performance?${next.toString()}`);
+  };
+
   return (
     <PageShell
       title="Performance"
@@ -79,7 +88,7 @@ export function PerformancePage() {
           <input placeholder="Account (optional)" value={account} onChange={(e) => setAccount(e.target.value)} />
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          <button onClick={() => void load()}>Load</button>
+          <button onClick={applyFilters}>Load</button>
         </div>
       }
     >

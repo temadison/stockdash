@@ -1,5 +1,5 @@
 import type { PropsWithChildren, ReactNode } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 
 type PageShellProps = PropsWithChildren<{
   title: string;
@@ -8,6 +8,22 @@ type PageShellProps = PropsWithChildren<{
 }>;
 
 export function PageShell({ title, subtitle, actions, children }: PageShellProps) {
+  const location = useLocation();
+  const historyLink = (() => {
+    if (location.pathname !== '/performance') {
+      return '/history';
+    }
+    const params = new URLSearchParams(location.search);
+    const next = new URLSearchParams();
+    const account = params.get('account');
+    const startDate = params.get('startDate');
+    const endDate = params.get('endDate');
+    if (account) next.set('account', account);
+    if (startDate) next.set('startDate', startDate);
+    if (endDate) next.set('endDate', endDate);
+    return `/history${next.toString() ? `?${next.toString()}` : ''}`;
+  })();
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -15,7 +31,7 @@ export function PageShell({ title, subtitle, actions, children }: PageShellProps
         <nav className="nav">
           <NavLink to="/" end>Summary</NavLink>
           <NavLink to="/performance">Performance</NavLink>
-          <NavLink to="/history?symbol=AAPL">History</NavLink>
+          <NavLink to={historyLink}>History</NavLink>
         </nav>
       </header>
 

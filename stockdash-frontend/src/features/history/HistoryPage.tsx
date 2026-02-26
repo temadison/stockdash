@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { DailyClosePricePointDto } from '../../shared/types/api';
-import { getHistory, getSymbols } from '../../shared/api/portfolioApi';
+import { getHistory, getPerformance, getSymbols } from '../../shared/api/portfolioApi';
 import { money, percent } from '../../shared/utils/format';
 import { computeCagr, computeReturn } from '../../shared/utils/analytics';
 import { PageShell } from '../../shared/ui/PageShell';
@@ -11,6 +11,7 @@ export function HistoryPage() {
   const querySymbol = useMemo(() => params.get('symbol') ?? '', [params]);
   const queryStartDate = useMemo(() => params.get('startDate') ?? '', [params]);
   const queryEndDate = useMemo(() => params.get('endDate') ?? '', [params]);
+  const queryAccount = useMemo(() => params.get('account') ?? '', [params]);
 
   const [symbol, setSymbol] = useState(querySymbol.toUpperCase());
   const [startDate, setStartDate] = useState(queryStartDate);
@@ -24,7 +25,14 @@ export function HistoryPage() {
       setLoading(true);
       setError('');
       const response = await getHistory(targetSymbol, targetStartDate || undefined, targetEndDate || undefined);
-      setRows([...response].sort((a, b) => a.date.localeCompare(b.date)));
+      const sorted = [...response].sort((a, b) => a.date.localeCompare(b.date));
+      setRows(sorted);
+      if (!targetStartDate && sorted.length > 0) {
+        setStartDate(sorted[0].date);
+      }
+      if (!targetEndDate && sorted.length > 0) {
+        setEndDate(sorted[sorted.length - 1].date);
+      }
     } catch (e) {
       setRows([]);
       setError((e as Error).message);
@@ -46,8 +54,16 @@ export function HistoryPage() {
       }
 
       try {
-        const symbols = await getSymbols();
-        const fallback = symbols[0]?.toUpperCase() ?? '';
+        let fallback = '';
+        if (queryAccount) {
+          const performance = await getPerformance(queryAccount, queryStartDate || undefined, queryEndDate || undefined);
+          const accountSymbols = Array.from(new Set(performance.flatMap((point) => point.stocks.map((stock) => stock.symbol)))).sort();
+          fallback = accountSymbols[0]?.toUpperCase() ?? '';
+        }
+        if (!fallback) {
+          const symbols = await getSymbols();
+          fallback = symbols[0]?.toUpperCase() ?? '';
+        }
         setSymbol(fallback);
         if (fallback) {
           await load(fallback, queryStartDate, queryEndDate);
@@ -60,7 +76,7 @@ export function HistoryPage() {
     };
 
     void syncFromQuery();
-  }, [querySymbol, queryStartDate, queryEndDate]);
+  }, [querySymbol, queryStartDate, queryEndDate, queryAccount]);
 
   const points = rows.map((row, index) => ({
     ...row,
