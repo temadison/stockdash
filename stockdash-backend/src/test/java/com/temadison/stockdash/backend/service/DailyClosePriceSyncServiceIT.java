@@ -87,4 +87,16 @@ class DailyClosePriceSyncServiceIT extends MySqlContainerBaseIT {
                 .extracting(price -> price.getPriceDate().toString())
                 .containsExactly("2026-01-02");
     }
+
+    @Test
+    void syncForStocks_marksSymbolsWithoutBuyHistoryAsSkipped() {
+        PriceSyncResult result = dailyClosePriceSyncService.syncForStocks(List.of("AAPL"));
+
+        assertThat(result.symbolsRequested()).isEqualTo(1);
+        assertThat(result.symbolsWithPurchases()).isEqualTo(0);
+        assertThat(result.pricesStored()).isEqualTo(0);
+        assertThat(result.statusBySymbol()).containsEntry("AAPL", "no_purchase_history");
+        assertThat(result.skippedSymbols()).containsExactly("AAPL");
+        assertThat(dailyClosePriceRepository.count()).isZero();
+    }
 }

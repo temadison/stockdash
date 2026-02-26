@@ -129,6 +129,52 @@ class PortfolioControllerUploadTest {
                 .andExpect(jsonPath("$.errors", hasSize(1)));
     }
 
+    @Test
+    void priceHistory_returnsBadRequestForInvalidDateRange() throws Exception {
+        mockMvc.perform(get("/api/portfolio/prices/history")
+                        .param("symbol", "AAPL")
+                        .param("startDate", "2026-02-16")
+                        .param("endDate", "2026-01-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.detail", containsString("startDate must be on or before endDate")));
+    }
+
+    @Test
+    void priceHistory_returnsEmptyArrayWhenSymbolHasNoStoredHistory() throws Exception {
+        mockMvc.perform(get("/api/portfolio/prices/history")
+                        .param("symbol", "ZZZZ"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void performance_returnsBadRequestForInvalidDateRange() throws Exception {
+        byte[] csvBytes = readResource("sample-transactions.csv");
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "sample-transactions.csv",
+                "text/csv",
+                csvBytes
+        );
+        mockMvc.perform(multipart("/api/portfolio/transactions/upload").file(file))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/portfolio/performance")
+                        .param("startDate", "2026-02-16")
+                        .param("endDate", "2026-01-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.detail", containsString("startDate must be on or before endDate")));
+    }
+
+    @Test
+    void symbols_returnsEmptyArrayWhenNoTransactionsExist() throws Exception {
+        mockMvc.perform(get("/api/portfolio/symbols"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
     private byte[] readResource(String resourceName) throws IOException {
         return new ClassPathResource(resourceName).getInputStream().readAllBytes();
     }
