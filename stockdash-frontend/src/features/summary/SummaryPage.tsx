@@ -11,14 +11,18 @@ export function SummaryPage() {
   const [date, setDate] = useState(todayIso());
   const [snapshots, setSnapshots] = useState<PortfolioSnapshotDto[]>([]);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const load = async () => {
     try {
+      setLoading(true);
       setError('');
       setSnapshots(await getDailySummary(date));
     } catch (e) {
       setError((e as Error).message);
       setSnapshots([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,6 +38,7 @@ export function SummaryPage() {
         <div className="inline">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <button onClick={() => void load()}>Load</button>
+          <Link to="/performance?account=TOTAL" className="inline-link">Total Portfolio</Link>
         </div>
       }
     >
@@ -47,14 +52,28 @@ export function SummaryPage() {
       </div>
 
       {error ? <p className="error">{error}</p> : null}
+      {!error && loading ? <p className="muted">Loading summary...</p> : null}
+      {!error && !loading && snapshots.length === 0 ? (
+        <p className="muted">No account data found for the selected date.</p>
+      ) : null}
 
       <div className="stack gap-md">
         {snapshots.map((snapshot) => (
           <article key={snapshot.accountName} className="card">
             <div className="inline spread">
-              <h2>{snapshot.accountName}</h2>
+              <h2>
+                <Link
+                  className="inline-link"
+                  to={`/performance?account=${encodeURIComponent(snapshot.accountName)}&endDate=${encodeURIComponent(date)}`}
+                >
+                  {snapshot.accountName}
+                </Link>
+              </h2>
               <strong>{money.format(snapshot.totalValue)}</strong>
             </div>
+            <p className="muted">
+              Account link opens performance filtered to this account.
+            </p>
             <table>
               <thead>
                 <tr><th>Symbol</th><th>Qty</th><th>Price</th><th>Value</th></tr>

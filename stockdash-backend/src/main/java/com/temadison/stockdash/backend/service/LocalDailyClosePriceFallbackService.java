@@ -26,7 +26,7 @@ public class LocalDailyClosePriceFallbackService implements DailyClosePriceFallb
             return Map.of();
         }
 
-        LocalDate startDate = firstBuyDate.plusDays(1);
+        LocalDate startDate = firstBuyDate;
         LocalDate endDate = LocalDate.now().minusDays(1);
         if (startDate.isAfter(endDate)) {
             return Map.of();

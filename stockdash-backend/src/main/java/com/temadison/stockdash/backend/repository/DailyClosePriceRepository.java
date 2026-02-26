@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DailyClosePriceRepository extends JpaRepository<DailyClosePriceEntity, Long> {
-    List<DailyClosePriceEntity> findBySymbolAndPriceDateAfter(String symbol, LocalDate priceDate);
+    List<DailyClosePriceEntity> findBySymbolAndPriceDateGreaterThanEqual(String symbol, LocalDate priceDate);
 
     List<DailyClosePriceEntity> findBySymbolOrderByPriceDateAsc(String symbol);
     List<DailyClosePriceEntity> findBySymbolOrderByPriceDateDesc(String symbol);

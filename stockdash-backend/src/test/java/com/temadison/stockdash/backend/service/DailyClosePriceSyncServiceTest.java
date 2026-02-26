@@ -51,7 +51,7 @@ class DailyClosePriceSyncServiceTest {
     }
 
     @Test
-    void syncForStocks_storesOnlyDatesAfterFirstPurchase_andIsIdempotent() {
+    void syncForStocks_storesFromFirstPurchaseDate_andIsIdempotent() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "sync-fixture.csv",
@@ -82,10 +82,10 @@ class DailyClosePriceSyncServiceTest {
 
         assertThat(first.symbolsRequested()).isEqualTo(3);
         assertThat(first.symbolsWithPurchases()).isEqualTo(2);
-        assertThat(first.pricesStored()).isEqualTo(3);
+        assertThat(first.pricesStored()).isEqualTo(5);
         assertThat(first.storedBySymbol()).hasSize(2);
-        assertThat(first.storedBySymbol()).containsEntry("AAPL", 2);
-        assertThat(first.storedBySymbol()).containsEntry("MSFT", 1);
+        assertThat(first.storedBySymbol()).containsEntry("AAPL", 3);
+        assertThat(first.storedBySymbol()).containsEntry("MSFT", 2);
         assertThat(first.statusBySymbol()).containsEntry("AAPL", "stored");
         assertThat(first.statusBySymbol()).containsEntry("MSFT", "stored");
         assertThat(first.statusBySymbol()).containsEntry("GOOG", "no_purchase_history");
@@ -100,10 +100,10 @@ class DailyClosePriceSyncServiceTest {
 
         assertThat(dailyClosePriceRepository.findBySymbolOrderByPriceDateAsc("AAPL"))
                 .extracting(price -> price.getPriceDate().toString())
-                .containsExactly("2026-01-02", "2026-01-09");
+                .containsExactly("2026-01-01", "2026-01-02", "2026-01-09");
         assertThat(dailyClosePriceRepository.findBySymbolOrderByPriceDateAsc("MSFT"))
                 .extracting(price -> price.getPriceDate().toString())
-                .containsExactly("2026-01-06");
+                .containsExactly("2026-01-05", "2026-01-06");
     }
 
     @Test

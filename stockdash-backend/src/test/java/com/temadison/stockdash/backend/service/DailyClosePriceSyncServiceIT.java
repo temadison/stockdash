@@ -75,8 +75,8 @@ class DailyClosePriceSyncServiceIT extends MySqlContainerBaseIT {
         PriceSyncResult first = dailyClosePriceSyncService.syncForStocks(List.of("AAPL"));
         PriceSyncResult second = dailyClosePriceSyncService.syncForStocks(List.of("AAPL"));
 
-        assertThat(first.pricesStored()).isEqualTo(1);
-        assertThat(first.storedBySymbol()).containsEntry("AAPL", 1);
+        assertThat(first.pricesStored()).isEqualTo(2);
+        assertThat(first.storedBySymbol()).containsEntry("AAPL", 2);
         assertThat(first.statusBySymbol()).containsEntry("AAPL", "stored");
 
         assertThat(second.pricesStored()).isEqualTo(0);
@@ -85,7 +85,7 @@ class DailyClosePriceSyncServiceIT extends MySqlContainerBaseIT {
 
         assertThat(dailyClosePriceRepository.findBySymbolOrderByPriceDateAsc("AAPL"))
                 .extracting(price -> price.getPriceDate().toString())
-                .containsExactly("2026-01-02");
+                .containsExactly("2026-01-01", "2026-01-02");
     }
 
     @Test
