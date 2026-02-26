@@ -43,5 +43,38 @@ services:
       retries: 12
       start_period: 30s
 
+  prometheus:
+    image: ${STOCKDASH_PROMETHEUS_IMAGE:-prom/prometheus:v2.54.1}
+    container_name: stockdash-prometheus
+    depends_on:
+      backend:
+        condition: service_healthy
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "${STOCKDASH_PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - stockdash_prometheus_data:/prometheus
+
+  grafana:
+    image: ${STOCKDASH_GRAFANA_IMAGE:-grafana/grafana:11.2.2}
+    container_name: stockdash-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${STOCKDASH_GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${STOCKDASH_GRAFANA_ADMIN_PASSWORD:-admin}
+    ports:
+      - "${STOCKDASH_GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/stockdash-overview-dashboard.json:/var/lib/grafana/dashboards/stockdash-overview-dashboard.json:ro
+      - stockdash_grafana_data:/var/lib/grafana
+
 volumes:
   stockdash_mysql_data:
+  stockdash_prometheus_data:
+  stockdash_grafana_data:

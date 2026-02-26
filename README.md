@@ -68,6 +68,36 @@ Required env vars for compose quick start live in `.env.example`:
 - `STOCKDASH_DB_PASSWORD`
 - `STOCKDASH_DB_ROOT_PASSWORD`
 
+## Observability Pack
+
+Already built into backend:
+- Structured JSON logs with propagated `X-Correlation-Id` (`CorrelationIdFilter` + `logback-spring.xml`)
+- Actuator health probes:
+  - `/actuator/health`
+  - `/actuator/health/liveness`
+  - `/actuator/health/readiness`
+- Micrometer Prometheus metrics endpoint:
+  - `/actuator/prometheus`
+
+Ops artifacts:
+- Prometheus config: `ops/prometheus/prometheus.yml`
+- Grafana provisioning + dashboard JSON:
+  - `ops/grafana/provisioning/datasources/prometheus.yml`
+  - `ops/grafana/provisioning/dashboards/dashboards.yml`
+  - `ops/grafana/stockdash-overview-dashboard.json`
+
+Run metrics stack with compose:
+
+```bash
+docker compose --env-file .env.example up --build -d
+```
+
+View:
+- Prometheus UI: `http://localhost:9090`
+- Grafana UI: `http://localhost:3000`
+  - default creds from `.env.example`: `admin` / `admin`
+  - dashboard: `Stockdash / Stockdash Backend Overview`
+
 ## Portfolio Readiness Signals
 
 - Migration-managed schema (Flyway) with startup validation.
