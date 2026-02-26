@@ -11,10 +11,12 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -175,6 +177,49 @@ class AlphaVantageDailySeriesClientTest {
         SeriesFetchResult result = client.fetchDailyCloseSeries("AAPL");
 
         assertThat(result.status()).isEqualTo(SeriesFetchStatus.API_ERROR);
+    }
+
+    @Test
+    void honorsRetryAfterOn429AndThenRecovers() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        AlphaVantageRequestLimiter requestLimiter = mock(AlphaVantageRequestLimiter.class);
+        doReturn(false).when(requestLimiter).isDailyLimitReached();
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> rateLimited = (HttpResponse<String>) mock(HttpResponse.class);
+        when(rateLimited.statusCode()).thenReturn(429);
+        when(rateLimited.headers()).thenReturn(HttpHeaders.of(Map.of("Retry-After", java.util.List.of("1")), (a, b) -> true));
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> successResponse = (HttpResponse<String>) mock(HttpResponse.class);
+        when(successResponse.statusCode()).thenReturn(200);
+        when(successResponse.body()).thenReturn("""
+                {
+                  "Time Series (Daily)": {
+                    "2026-01-03": {"4. close": "111.11"}
+                  }
+                }
+                """);
+
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(rateLimited)
+                .thenReturn(successResponse);
+
+        AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
+                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                requestLimiter,
+                httpClient,
+                retry(2),
+                circuitBreaker(50.0f, 10, 5),
+                timeLimiter(1)
+        );
+
+        SeriesFetchResult result = client.fetchDailyCloseSeries("AAPL");
+
+        assertThat(result.status()).isEqualTo(SeriesFetchStatus.SUCCESS);
+        assertThat(result.series()).containsEntry(LocalDate.of(2026, 1, 3), new java.math.BigDecimal("111.11"));
+        verify(requestLimiter, times(1)).awaitRetryAfter(Duration.ofSeconds(1));
+        verify(httpClient, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
 
     private Retry retry(int maxAttempts) {

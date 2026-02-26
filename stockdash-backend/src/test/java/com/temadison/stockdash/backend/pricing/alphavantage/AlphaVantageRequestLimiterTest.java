@@ -3,6 +3,7 @@ package com.temadison.stockdash.backend.pricing.alphavantage;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.time.Duration;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +50,17 @@ class AlphaVantageRequestLimiterTest {
         long elapsedMs = System.currentTimeMillis() - started;
 
         assertThat(elapsedMs).isGreaterThanOrEqualTo(8L);
+    }
+
+    @Test
+    void awaitsRetryAfterWindow() throws Exception {
+        AlphaVantageRequestLimiter limiter = new AlphaVantageRequestLimiter();
+
+        long started = System.currentTimeMillis();
+        limiter.awaitRetryAfter(Duration.ofMillis(20));
+        long elapsedMs = System.currentTimeMillis() - started;
+
+        assertThat(elapsedMs).isGreaterThanOrEqualTo(15L);
     }
 
     private static void setDateField(Object target, String fieldName, LocalDate value) throws Exception {

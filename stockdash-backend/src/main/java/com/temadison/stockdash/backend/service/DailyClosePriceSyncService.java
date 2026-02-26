@@ -80,6 +80,7 @@ public class DailyClosePriceSyncService implements PriceSyncService {
                 LocalDate latestStoredDate = dailyClosePriceRepository.findTopBySymbolOrderByPriceDateDesc(symbol)
                         .map(DailyClosePriceEntity::getPriceDate)
                         .orElse(null);
+                LocalDate resumeFromDate = latestStoredDate == null ? firstBuyDate : latestStoredDate;
                 if (latestStoredDate != null && !latestStoredDate.isBefore(LocalDate.now().minusDays(1))) {
                     storedBySymbol.put(symbol, 0);
                     statusBySymbol.put(symbol, "already_up_to_date");
@@ -107,7 +108,7 @@ public class DailyClosePriceSyncService implements PriceSyncService {
                 List<DailyClosePriceEntity> toSave = new ArrayList<>();
                 for (Map.Entry<LocalDate, BigDecimal> entry : dailySeries.entrySet()) {
                     LocalDate priceDate = entry.getKey();
-                    if (!priceDate.isAfter(firstBuyDate) || existingDates.contains(priceDate)) {
+                    if (!priceDate.isAfter(resumeFromDate) || existingDates.contains(priceDate)) {
                         continue;
                     }
                     DailyClosePriceEntity entity = new DailyClosePriceEntity();

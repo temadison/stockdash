@@ -56,35 +56,60 @@ public class CsvTransactionImportService implements CsvImportService {
 
     private final AccountRepository accountRepository;
     private final TradeTransactionRepository tradeTransactionRepository;
+    private final JobRunRecorder jobRunRecorder;
 
     public CsvTransactionImportService(
             AccountRepository accountRepository,
-            TradeTransactionRepository tradeTransactionRepository
+            TradeTransactionRepository tradeTransactionRepository,
+            JobRunRecorder jobRunRecorder
     ) {
         this.accountRepository = accountRepository;
         this.tradeTransactionRepository = tradeTransactionRepository;
+        this.jobRunRecorder = jobRunRecorder;
     }
 
     @Override
     @Transactional
     public CsvUploadResult importCsv(MultipartFile file) {
+        long runId = jobRunRecorder.start("csv_import", "source=multipart");
         if (file == null || file.isEmpty()) {
-            throw new CsvImportException("CSV file is required and cannot be empty.");
+            CsvImportException error = new CsvImportException("CSV file is required and cannot be empty.");
+            jobRunRecorder.fail(runId, 0, 0, 1, 0, error, "multipart payload empty");
+            throw error;
         }
         try {
-            return importCsvStream(file.getInputStream());
+            CsvUploadResult result = importCsvStream(file.getInputStream());
+            int requested = result.importedCount() + result.skippedCount();
+            jobRunRecorder.success(runId, requested, result.importedCount(), 0, result.skippedCount(), "source=multipart");
+            return result;
         } catch (IOException e) {
-            throw new CsvImportException("Unable to read CSV file.");
+            CsvImportException error = new CsvImportException("Unable to read CSV file.");
+            jobRunRecorder.fail(runId, 0, 0, 1, 0, error, "source=multipart");
+            throw error;
+        } catch (RuntimeException e) {
+            jobRunRecorder.fail(runId, 0, 0, 1, 0, e, "source=multipart");
+            throw e;
         }
     }
 
     @Override
     @Transactional
     public CsvUploadResult importCsv(InputStream inputStream) {
+        long runId = jobRunRecorder.start("csv_import", "source=stream");
         if (inputStream == null) {
-            throw new CsvImportException("CSV input stream is required.");
+            CsvImportException error = new CsvImportException("CSV input stream is required.");
+            jobRunRecorder.fail(runId, 0, 0, 1, 0, error, "source=stream");
+            throw error;
         }
-        return importCsvStream(inputStream);
+        try {
+            CsvUploadResult result = importCsvStream(inputStream);
+            int requested = result.importedCount() + result.skippedCount();
+            jobRunRecorder.success(runId, requested, result.importedCount(), 0, result.skippedCount(), "source=stream");
+            return result;
+        } catch (RuntimeException e) {
+            jobRunRecorder.fail(runId, 0, 0, 1, 0, e, "source=stream");
+            throw e;
+        }
     }
 
     private CsvUploadResult importCsvStream(InputStream inputStream) {

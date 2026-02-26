@@ -24,7 +24,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -148,7 +152,17 @@ public class AlphaVantageDailySeriesClient {
         try {
             requestLimiter.awaitTurn();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 429 || response.statusCode() >= 500) {
+            if (response.statusCode() == 429) {
+                Duration retryAfter = retryAfter(response);
+                if (retryAfter != null) {
+                    requestLimiter.awaitRetryAfter(retryAfter);
+                }
+                throw new RetryableSeriesFetchException(
+                        SeriesFetchStatus.RATE_LIMITED,
+                        "Price series API rate limited HTTP 429 for symbol " + symbol + "."
+                );
+            }
+            if (response.statusCode() >= 500) {
                 throw new RetryableSeriesFetchException(
                         SeriesFetchStatus.API_ERROR,
                         "Price series API transient failure HTTP " + response.statusCode() + " for symbol " + symbol + "."
@@ -172,6 +186,32 @@ public class AlphaVantageDailySeriesClient {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RetryableSeriesFetchException(SeriesFetchStatus.API_ERROR, "Interrupted while fetching daily series for symbol " + symbol + ".", e);
+        }
+    }
+
+    private Duration retryAfter(HttpResponse<String> response) {
+        return response.headers().firstValue("Retry-After")
+                .map(this::parseRetryAfter)
+                .orElse(null);
+    }
+
+    private Duration parseRetryAfter(String retryAfterHeader) {
+        String header = retryAfterHeader == null ? "" : retryAfterHeader.trim();
+        if (header.isEmpty()) {
+            return null;
+        }
+        try {
+            long seconds = Long.parseLong(header);
+            return Duration.ofSeconds(Math.max(0, seconds));
+        } catch (NumberFormatException ignored) {
+            // continue to HTTP-date parsing
+        }
+        try {
+            Instant until = ZonedDateTime.parse(header, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant();
+            Duration duration = Duration.between(Instant.now(), until);
+            return duration.isNegative() ? Duration.ZERO : duration;
+        } catch (DateTimeParseException ignored) {
+            return null;
         }
     }
 

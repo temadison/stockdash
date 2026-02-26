@@ -18,14 +18,17 @@ public class ScheduledPriceSyncJob {
 
     private final PortfolioSymbolQueryService portfolioSymbolService;
     private final PriceSyncService dailyClosePriceSyncService;
+    private final JobRunRecorder jobRunRecorder;
     private final AtomicBoolean syncInProgress = new AtomicBoolean(false);
 
     public ScheduledPriceSyncJob(
             PortfolioSymbolQueryService portfolioSymbolService,
-            PriceSyncService dailyClosePriceSyncService
+            PriceSyncService dailyClosePriceSyncService,
+            JobRunRecorder jobRunRecorder
     ) {
         this.portfolioSymbolService = portfolioSymbolService;
         this.dailyClosePriceSyncService = dailyClosePriceSyncService;
+        this.jobRunRecorder = jobRunRecorder;
     }
 
     @Scheduled(
@@ -38,14 +41,23 @@ public class ScheduledPriceSyncJob {
             return;
         }
 
+        Long runId = null;
         try {
             List<String> symbols = portfolioSymbolService.symbols();
+            runId = jobRunRecorder.start("scheduled_price_sync", "symbolsFound=" + symbols.size());
             if (symbols.isEmpty()) {
                 log.info("Skipping scheduled price sync because no portfolio symbols were found.");
+                jobRunRecorder.success(runId, 0, 0, 0, 0, "no symbols");
                 return;
             }
 
             PriceSyncResult result = dailyClosePriceSyncService.syncForStocks(symbols);
+            int failed = (int) result.statusBySymbol().values().stream()
+                    .filter(status -> "rate_limited".equals(status)
+                            || "circuit_open".equals(status)
+                            || "api_error".equals(status)
+                            || "invalid_symbol".equals(status))
+                    .count();
             log.info(
                     "Scheduled price sync complete. requested={}, withPurchases={}, stored={}, skipped={}",
                     result.symbolsRequested(),
@@ -53,8 +65,20 @@ public class ScheduledPriceSyncJob {
                     result.pricesStored(),
                     result.skippedSymbols().size()
             );
+            jobRunRecorder.success(
+                    runId,
+                    result.symbolsRequested(),
+                    result.pricesStored(),
+                    failed,
+                    result.skippedSymbols().size(),
+                    "scheduled sync complete"
+            );
         } catch (Exception ex) {
             log.error("Scheduled price sync failed.", ex);
+            if (runId == null) {
+                runId = jobRunRecorder.start("scheduled_price_sync", "failed_before_sync");
+            }
+            jobRunRecorder.fail(runId, 0, 0, 1, 0, ex, "scheduled sync failed");
         } finally {
             syncInProgress.set(false);
         }

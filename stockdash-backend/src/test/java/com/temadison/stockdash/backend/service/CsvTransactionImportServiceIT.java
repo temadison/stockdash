@@ -1,7 +1,9 @@
 package com.temadison.stockdash.backend.service;
 
+import com.temadison.stockdash.backend.domain.JobRunStatus;
 import com.temadison.stockdash.backend.model.CsvUploadResult;
 import com.temadison.stockdash.backend.repository.AccountRepository;
+import com.temadison.stockdash.backend.repository.JobRunRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import com.temadison.stockdash.backend.support.MySqlContainerBaseIT;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +27,9 @@ class CsvTransactionImportServiceIT extends MySqlContainerBaseIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private JobRunRepository jobRunRepository;
 
     @BeforeEach
     void setUp() {
@@ -60,5 +65,9 @@ class CsvTransactionImportServiceIT extends MySqlContainerBaseIT {
         assertThat(second.skippedCount()).isEqualTo(2);
         assertThat(accountRepository.count()).isEqualTo(1);
         assertThat(tradeTransactionRepository.count()).isEqualTo(2);
+        assertThat(jobRunRepository.count()).isEqualTo(2);
+        assertThat(jobRunRepository.findAll())
+                .extracting(run -> run.getStatus())
+                .containsOnly(JobRunStatus.SUCCESS);
     }
 }

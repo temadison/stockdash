@@ -1,5 +1,6 @@
 package com.temadison.stockdash.backend.pricing.alphavantage;
 
+import java.time.Duration;
 import java.time.LocalDate;
 
 import org.springframework.stereotype.Component;
@@ -41,6 +42,15 @@ public class AlphaVantageRequestLimiter {
         if (elapsed < MIN_REQUEST_SPACING_MS) {
             Thread.sleep(MIN_REQUEST_SPACING_MS - elapsed);
         }
+        lastRequestEpochMs = System.currentTimeMillis();
+    }
+
+    public synchronized void awaitRetryAfter(Duration retryAfter) throws InterruptedException {
+        if (retryAfter == null || retryAfter.isNegative() || retryAfter.isZero()) {
+            return;
+        }
+        long sleepMs = Math.min(retryAfter.toMillis(), 60_000L);
+        Thread.sleep(sleepMs);
         lastRequestEpochMs = System.currentTimeMillis();
     }
 }
