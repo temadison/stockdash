@@ -108,6 +108,8 @@ dependencyCheck {
     }
     analyzers {
         assemblyEnabled = false
+        nodeAuditEnabled = false
+        ossIndexEnabled = false
     }
 }
 

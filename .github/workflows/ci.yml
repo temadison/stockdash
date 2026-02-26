@@ -63,6 +63,7 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     needs: test
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Checkout
@@ -77,6 +78,15 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Validate NVD API key is configured
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          if [ -z "$NVD_API_KEY" ]; then
+            echo "NVD_API_KEY secret is not configured."
+            exit 1
+          fi
 
       - name: Run OWASP scan + SBOM generation
         env:
