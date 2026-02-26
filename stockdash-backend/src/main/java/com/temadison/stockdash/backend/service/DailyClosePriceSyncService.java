@@ -5,7 +5,7 @@ import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
 import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.model.PriceSyncResult;
 import com.temadison.stockdash.backend.pricing.SymbolNormalizer;
-import com.temadison.stockdash.backend.pricing.alphavantage.AlphaVantageDailySeriesClient;
+import com.temadison.stockdash.backend.pricing.alphavantage.DailySeriesClient;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchResult;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchStatus;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
@@ -33,8 +33,8 @@ public class DailyClosePriceSyncService implements PriceSyncService {
 
     private final TradeTransactionRepository tradeTransactionRepository;
     private final DailyClosePriceRepository dailyClosePriceRepository;
-    private final AlphaVantageDailySeriesClient alphaVantageDailySeriesClient;
-    private final LocalDailyClosePriceFallbackService localDailyClosePriceFallbackService;
+    private final DailySeriesClient dailySeriesClient;
+    private final DailyClosePriceFallbackService dailyClosePriceFallbackService;
     private final boolean localFallbackEnabled;
     private final int localFallbackLookbackDays;
     private final Map<String, Object> symbolSyncLocks = new ConcurrentHashMap<>();
@@ -42,15 +42,15 @@ public class DailyClosePriceSyncService implements PriceSyncService {
     public DailyClosePriceSyncService(
             TradeTransactionRepository tradeTransactionRepository,
             DailyClosePriceRepository dailyClosePriceRepository,
-            AlphaVantageDailySeriesClient alphaVantageDailySeriesClient,
-            LocalDailyClosePriceFallbackService localDailyClosePriceFallbackService,
+            DailySeriesClient dailySeriesClient,
+            DailyClosePriceFallbackService dailyClosePriceFallbackService,
             @Value("${stockdash.pricing.local-fallback-enabled:false}") boolean localFallbackEnabled,
             @Value("${stockdash.pricing.local-fallback-lookback-days:365}") int localFallbackLookbackDays
     ) {
         this.tradeTransactionRepository = tradeTransactionRepository;
         this.dailyClosePriceRepository = dailyClosePriceRepository;
-        this.alphaVantageDailySeriesClient = alphaVantageDailySeriesClient;
-        this.localDailyClosePriceFallbackService = localDailyClosePriceFallbackService;
+        this.dailySeriesClient = dailySeriesClient;
+        this.dailyClosePriceFallbackService = dailyClosePriceFallbackService;
         this.localFallbackEnabled = localFallbackEnabled;
         this.localFallbackLookbackDays = localFallbackLookbackDays;
     }
@@ -87,11 +87,11 @@ public class DailyClosePriceSyncService implements PriceSyncService {
                     continue;
                 }
 
-                SeriesFetchResult fetchResult = alphaVantageDailySeriesClient.fetchDailyCloseSeries(symbol);
+                SeriesFetchResult fetchResult = dailySeriesClient.fetchDailyCloseSeries(symbol);
                 Map<LocalDate, BigDecimal> dailySeries = fetchResult.series();
                 boolean usedLocalFallback = false;
                 if (dailySeries.isEmpty() && shouldUseLocalFallback(fetchResult.status())) {
-                    dailySeries = localDailyClosePriceFallbackService.generateSeries(symbol, firstBuyDate, localFallbackLookbackDays);
+                    dailySeries = dailyClosePriceFallbackService.generateSeries(symbol, firstBuyDate, localFallbackLookbackDays);
                     usedLocalFallback = !dailySeries.isEmpty();
                 }
                 if (dailySeries.isEmpty()) {

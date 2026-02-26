@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class LocalDailyClosePriceFallbackService {
+public class LocalDailyClosePriceFallbackService implements DailyClosePriceFallbackService {
 
     private final TradeTransactionRepository tradeTransactionRepository;
 
@@ -19,6 +19,7 @@ public class LocalDailyClosePriceFallbackService {
         this.tradeTransactionRepository = tradeTransactionRepository;
     }
 
+    @Override
     public Map<LocalDate, BigDecimal> generateSeries(String symbol, LocalDate firstBuyDate, int lookbackDays) {
         List<TradeTransactionEntity> trades = tradeTransactionRepository.findBySymbolOrderByTradeDateAscIdAsc(symbol);
         if (trades.isEmpty()) {

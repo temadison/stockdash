@@ -1,7 +1,7 @@
 package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.model.PriceSyncResult;
-import com.temadison.stockdash.backend.pricing.alphavantage.AlphaVantageDailySeriesClient;
+import com.temadison.stockdash.backend.pricing.alphavantage.DailySeriesClient;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchResult;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchStatus;
 import com.temadison.stockdash.backend.repository.AccountRepository;
@@ -41,7 +41,7 @@ class DailyClosePriceSyncServiceTest {
     private AccountRepository accountRepository;
 
     @MockitoBean
-    private AlphaVantageDailySeriesClient alphaVantageDailySeriesClient;
+    private DailySeriesClient dailySeriesClient;
 
     @BeforeEach
     void setUp() {
@@ -65,13 +65,13 @@ class DailyClosePriceSyncServiceTest {
         );
         csvTransactionImportService.importCsv(file);
 
-        given(alphaVantageDailySeriesClient.fetchDailyCloseSeries("AAPL")).willReturn(new SeriesFetchResult(Map.of(
+        given(dailySeriesClient.fetchDailyCloseSeries("AAPL")).willReturn(new SeriesFetchResult(Map.of(
                 LocalDate.of(2025, 12, 31), new BigDecimal("99.00"),
                 LocalDate.of(2026, 1, 1), new BigDecimal("100.00"),
                 LocalDate.of(2026, 1, 2), new BigDecimal("101.00"),
                 LocalDate.of(2026, 1, 9), new BigDecimal("109.00")
         ), SeriesFetchStatus.SUCCESS));
-        given(alphaVantageDailySeriesClient.fetchDailyCloseSeries("MSFT")).willReturn(new SeriesFetchResult(Map.of(
+        given(dailySeriesClient.fetchDailyCloseSeries("MSFT")).willReturn(new SeriesFetchResult(Map.of(
                 LocalDate.of(2026, 1, 4), new BigDecimal("198.00"),
                 LocalDate.of(2026, 1, 5), new BigDecimal("200.00"),
                 LocalDate.of(2026, 1, 6), new BigDecimal("202.00")
@@ -120,7 +120,7 @@ class DailyClosePriceSyncServiceTest {
         );
         csvTransactionImportService.importCsv(file);
 
-        given(alphaVantageDailySeriesClient.fetchDailyCloseSeries("AAPL"))
+        given(dailySeriesClient.fetchDailyCloseSeries("AAPL"))
                 .willReturn(new SeriesFetchResult(Map.of(), SeriesFetchStatus.RATE_LIMITED));
 
         PriceSyncResult result = dailyClosePriceSyncService.syncForStocks(List.of("AAPL"));

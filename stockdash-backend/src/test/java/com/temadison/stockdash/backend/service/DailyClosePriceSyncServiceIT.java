@@ -1,7 +1,7 @@
 package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.model.PriceSyncResult;
-import com.temadison.stockdash.backend.pricing.alphavantage.AlphaVantageDailySeriesClient;
+import com.temadison.stockdash.backend.pricing.alphavantage.DailySeriesClient;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchResult;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchStatus;
 import com.temadison.stockdash.backend.repository.AccountRepository;
@@ -40,7 +40,7 @@ class DailyClosePriceSyncServiceIT extends MySqlContainerBaseIT {
     private AccountRepository accountRepository;
 
     @MockitoBean
-    private AlphaVantageDailySeriesClient alphaVantageDailySeriesClient;
+    private DailySeriesClient dailySeriesClient;
 
     @BeforeEach
     void setUp() {
@@ -62,7 +62,7 @@ class DailyClosePriceSyncServiceIT extends MySqlContainerBaseIT {
         );
         csvTransactionImportService.importCsv(csv);
 
-        given(alphaVantageDailySeriesClient.fetchDailyCloseSeries("AAPL"))
+        given(dailySeriesClient.fetchDailyCloseSeries("AAPL"))
                 .willReturn(new SeriesFetchResult(
                         Map.of(
                                 LocalDate.of(2025, 12, 31), new BigDecimal("99.00"),

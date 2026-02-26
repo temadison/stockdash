@@ -38,7 +38,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 @Component
-public class AlphaVantageDailySeriesClient {
+public class AlphaVantageDailySeriesClient implements DailySeriesClient {
 
     private static final Logger log = LoggerFactory.getLogger(AlphaVantageDailySeriesClient.class);
     private static final String RESILIENCE_INSTANCE_NAME = "alphaVantageDailySeries";
@@ -89,6 +89,7 @@ public class AlphaVantageDailySeriesClient {
         this.timeLimiter = timeLimiter;
     }
 
+    @Override
     public SeriesFetchResult fetchDailyCloseSeries(String symbol) {
         if (!StringUtils.hasText(pricingProperties.alphaVantageApiKey())) {
             return new SeriesFetchResult(Map.of(), SeriesFetchStatus.NO_DATA);

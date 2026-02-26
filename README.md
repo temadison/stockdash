@@ -23,6 +23,25 @@ This keeps things easy to learn while staying modular and scalable.
 - Deploy/runbook: [docs/deploy.md](docs/deploy.md)
 - Branch protection: [docs/branch-protection.md](docs/branch-protection.md)
 
+## Architecture Overview
+
+Layering is enforced as:
+- `api` (controllers, request/response DTOs, API mappers)
+- `service` (application use-cases + interfaces)
+- `domain` (JPA entities, enums)
+- `repository` (Spring Data persistence ports)
+- `config` (cross-cutting concerns: validation/error handling, logging, HTTP client wiring)
+
+```mermaid
+flowchart TD
+    C[API Controller] --> D[API DTO + Mapper]
+    D --> S[Service Interfaces]
+    S --> I[Service Implementations]
+    I --> R[Repositories]
+    R --> E[(MySQL)]
+    I --> X[External APIs]
+```
+
 ## 5-Minute Quick Start (Enforced Path)
 
 Goal: fresh clone, one command, healthy app.
