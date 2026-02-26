@@ -8,14 +8,14 @@ Initial modular baseline for a stock dashboard that tracks multiple accounts ove
 - Build: Gradle multi-module
 - Data (now): in-memory sample data
 - Data: H2 by default, MySQL profile available
-- Frontend (next): separate module (`stockdash-frontend`) to add a lightweight UI (React, or server-rendered if you prefer)
+- Frontend: modular React + TypeScript module (`stockdash-frontend`) for portfolio views and API workflows
 
 This keeps things easy to learn while staying modular and scalable.
 
 ## Current Modules
 
 - `stockdash-backend`: runnable Spring Boot API
-- `stockdash-frontend`: placeholder module for upcoming UI work
+- `stockdash-frontend`: React + TypeScript + Vite client scaffolded with feature-based modules
 
 ## Documentation
 
@@ -218,6 +218,18 @@ Required headers:
 Then open:
 
 - `http://localhost:18090/actuator/health`
+
+Frontend (in a second terminal):
+
+```bash
+cd stockdash-frontend
+npm install
+npm run dev
+```
+
+Then open:
+
+- `http://localhost:5173`
 - `http://localhost:18090/api/portfolio/daily-summary?date=2026-02-16`
 
 Example upload:

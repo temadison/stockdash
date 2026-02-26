@@ -43,5 +43,11 @@ bin/
 ### Mac OS ###
 .DS_Store
 
+# Frontend (Node/Vite)
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
 # Local seed data (personal, never commit)
 stockdash-backend/src/main/resources/seed/local-transactions.csv
