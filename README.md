@@ -23,6 +23,51 @@ This keeps things easy to learn while staying modular and scalable.
 - Deploy/runbook: [docs/deploy.md](docs/deploy.md)
 - Branch protection: [docs/branch-protection.md](docs/branch-protection.md)
 
+## 5-Minute Quick Start (Enforced Path)
+
+Goal: fresh clone, one command, healthy app.
+
+From repo root:
+
+```bash
+docker compose --env-file .env.example up --build -d
+```
+
+Verify health:
+
+```bash
+curl -fsS http://localhost:18090/actuator/health/readiness
+```
+
+Expected response includes `"status":"UP"`.
+
+Quick-start behavior:
+- MySQL starts in Docker.
+- Flyway migrations run automatically on backend startup.
+- Demo seed import is enabled in `.env.example` (`STOCKDASH_SEED_ENABLED=true`).
+
+Stop:
+
+```bash
+docker compose down
+```
+
+Reset all data:
+
+```bash
+docker compose down -v
+```
+
+Required env vars for compose quick start live in `.env.example`:
+- `PORT`
+- `SPRING_PROFILES_ACTIVE`
+- `STOCKDASH_SEED_ENABLED`
+- `STOCKDASH_DB_PORT`
+- `STOCKDASH_DB_NAME`
+- `STOCKDASH_DB_USERNAME`
+- `STOCKDASH_DB_PASSWORD`
+- `STOCKDASH_DB_ROOT_PASSWORD`
+
 ## Portfolio Readiness Signals
 
 - Migration-managed schema (Flyway) with startup validation.
@@ -232,6 +277,7 @@ curl http://localhost:18090/actuator/health/readiness
 
 Notes:
 - Compose seeds are off by default (`STOCKDASH_SEED_ENABLED=false`).
+- The enforced quick-start command uses `.env.example`, which sets `STOCKDASH_SEED_ENABLED=true` for demo data.
 - MySQL data persists in the named volume `stockdash_mysql_data`.
 
 ## Optional Startup Seeding

@@ -1,14 +1,14 @@
 services:
   mysql:
-    image: mysql:8.4
+    image: ${STOCKDASH_MYSQL_IMAGE:-mysql:8.4}
     container_name: stockdash-mysql
     environment:
-      MYSQL_DATABASE: stockdash
-      MYSQL_USER: stockdash_app
-      MYSQL_PASSWORD: stockdash_dev_password
-      MYSQL_ROOT_PASSWORD: stockdash_root_password
+      MYSQL_DATABASE: ${STOCKDASH_DB_NAME:-stockdash}
+      MYSQL_USER: ${STOCKDASH_DB_USERNAME:-stockdash_app}
+      MYSQL_PASSWORD: ${STOCKDASH_DB_PASSWORD:-stockdash_dev_password}
+      MYSQL_ROOT_PASSWORD: ${STOCKDASH_DB_ROOT_PASSWORD:-stockdash_root_password}
     ports:
-      - "3306:3306"
+      - "${STOCKDASH_DB_PORT:-3306}:3306"
     volumes:
       - stockdash_mysql_data:/var/lib/mysql
     healthcheck:
@@ -27,16 +27,17 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      PORT: 18090
-      SPRING_PROFILES_ACTIVE: mysql
-      STOCKDASH_SEED_ENABLED: "false"
-      STOCKDASH_DB_URL: jdbc:mysql://mysql:3306/stockdash?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      STOCKDASH_DB_USERNAME: stockdash_app
-      STOCKDASH_DB_PASSWORD: stockdash_dev_password
+      PORT: ${PORT:-18090}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-mysql}
+      STOCKDASH_SEED_ENABLED: ${STOCKDASH_SEED_ENABLED:-false}
+      STOCKDASH_DB_URL: jdbc:mysql://mysql:3306/${STOCKDASH_DB_NAME:-stockdash}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      STOCKDASH_DB_USERNAME: ${STOCKDASH_DB_USERNAME:-stockdash_app}
+      STOCKDASH_DB_PASSWORD: ${STOCKDASH_DB_PASSWORD:-stockdash_dev_password}
+      STOCKDASH_PRICING_ALPHA_VANTAGE_API_KEY: ${STOCKDASH_PRICING_ALPHA_VANTAGE_API_KEY:-}
     ports:
-      - "18090:18090"
+      - "${PORT:-18090}:${PORT:-18090}"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:18090/actuator/health/readiness | grep -q '\"status\":\"UP\"'"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${PORT:-18090}/actuator/health/readiness | grep -q '\"status\":\"UP\"'"]
       interval: 10s
       timeout: 5s
       retries: 12
