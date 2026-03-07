@@ -7,6 +7,7 @@ import java.util.List;
 public record PortfolioPerformancePointDto(
         LocalDate date,
         BigDecimal totalValue,
+        BigDecimal netAmountSpent,
         List<StockPerformanceValueDto> stocks
 ) {
 }

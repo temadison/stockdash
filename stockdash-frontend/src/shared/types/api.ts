@@ -40,6 +40,7 @@ export type StockPerformanceValueDto = {
 export type PortfolioPerformancePointDto = {
   date: string;
   totalValue: number;
+  netAmountSpent: number;
   stocks: StockPerformanceValueDto[];
 };
 

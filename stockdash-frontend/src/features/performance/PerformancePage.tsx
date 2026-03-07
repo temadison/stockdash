@@ -70,11 +70,11 @@ export function PerformancePage() {
     () => Array.from(new Set(rows.flatMap((row) => row.stocks.map((stock) => stock.symbol)))).sort(),
     [rows]
   );
-  const startValue = rows[0]?.totalValue ?? 0;
   const endValue = rows[rows.length - 1]?.totalValue ?? 0;
-  const net = endValue - startValue;
-  const totalReturn = rows.length > 1 ? computeReturn(startValue, endValue) : null;
-  const cagr = rows.length > 1 ? computeCagr(startValue, endValue, rows[0].date, rows[rows.length - 1].date) : null;
+  const netAmountSpent = rows[rows.length - 1]?.netAmountSpent ?? 0;
+  const net = endValue - netAmountSpent;
+  const totalReturn = computeReturn(netAmountSpent, endValue);
+  const cagr = rows.length > 1 ? computeCagr(netAmountSpent, endValue, rows[0].date, rows[rows.length - 1].date) : null;
 
   const max = useMemo(() => {
     let currentMax = 1;

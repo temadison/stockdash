@@ -69,6 +69,7 @@ public class PortfolioApiMapper {
         return new PortfolioPerformancePointDto(
                 source.date(),
                 source.totalValue(),
+                source.netAmountSpent(),
                 source.stocks().stream().map(this::toDto).toList()
         );
     }

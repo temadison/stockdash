@@ -2,6 +2,7 @@ package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.domain.DailyClosePriceEntity;
 import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
+import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.model.PortfolioPerformancePoint;
 import com.temadison.stockdash.backend.model.StockPerformanceValue;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
@@ -54,11 +55,18 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
 
         Map<String, PositionAccumulator> positions = new HashMap<>();
         int txIndex = 0;
+        BigDecimal netAmountSpent = BigDecimal.ZERO;
         List<PortfolioPerformancePoint> points = new ArrayList<>();
 
         for (LocalDate day = resolvedStart; !day.isAfter(resolvedEnd); day = day.plusDays(1)) {
             while (txIndex < transactions.size() && !transactions.get(txIndex).getTradeDate().isAfter(day)) {
                 TradeTransactionEntity tx = transactions.get(txIndex);
+                BigDecimal gross = tx.getQuantity().multiply(tx.getPrice());
+                if (tx.getType() == TransactionType.BUY) {
+                    netAmountSpent = netAmountSpent.add(gross).add(tx.getFee());
+                } else {
+                    netAmountSpent = netAmountSpent.subtract(gross).add(tx.getFee());
+                }
                 PositionAccumulator acc = positions.computeIfAbsent(tx.getSymbol(), ignored -> new PositionAccumulator());
                 acc.apply(tx);
                 txIndex++;
@@ -85,7 +93,12 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
             }
 
             stocks.sort(Comparator.comparing(StockPerformanceValue::symbol));
-            points.add(new PortfolioPerformancePoint(day, total.setScale(2, RoundingMode.HALF_UP), stocks));
+            points.add(new PortfolioPerformancePoint(
+                    day,
+                    total.setScale(2, RoundingMode.HALF_UP),
+                    netAmountSpent.setScale(2, RoundingMode.HALF_UP),
+                    stocks
+            ));
         }
 
         return points;
