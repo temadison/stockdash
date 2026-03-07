@@ -36,7 +36,7 @@ class PortfolioPerformanceServiceTest {
                 tradeTransactionRepository,
                 dailyClosePriceRepository
         );
-        when(tradeTransactionRepository.findByTradeDateLessThanEqualOrderByTradeDateAscIdAsc(any()))
+        when(tradeTransactionRepository.findByTradeDateLessThanEqualAndAccount_NameIgnoreCaseOrderByTradeDateAscIdAsc(any(), anyString()))
                 .thenReturn(List.of(trade("IRA", "AAPL", TransactionType.BUY, "10", "100.00", "1.00", LocalDate.of(2026, 1, 1))));
 
         assertThatThrownBy(() -> service.performance("IRA", LocalDate.of(2026, 1, 10), LocalDate.of(2026, 1, 1)))
@@ -54,6 +54,8 @@ class PortfolioPerformanceServiceTest {
         TradeTransactionEntity iraBuy = trade("IRA", "AAPL", TransactionType.BUY, "10", "100.00", "1.00", LocalDate.of(2026, 1, 1));
         TradeTransactionEntity brokerBuy = trade("BROKER", "AAPL", TransactionType.BUY, "5", "200.00", "1.00", LocalDate.of(2026, 1, 1));
 
+        when(tradeTransactionRepository.findByTradeDateLessThanEqualAndAccount_NameIgnoreCaseOrderByTradeDateAscIdAsc(any(), anyString()))
+                .thenReturn(List.of(iraBuy));
         when(tradeTransactionRepository.findByTradeDateLessThanEqualOrderByTradeDateAscIdAsc(any()))
                 .thenReturn(List.of(iraBuy, brokerBuy));
         when(dailyClosePriceRepository.findBySymbolAndPriceDateLessThanEqualOrderByPriceDateDesc(anyString(), any()))

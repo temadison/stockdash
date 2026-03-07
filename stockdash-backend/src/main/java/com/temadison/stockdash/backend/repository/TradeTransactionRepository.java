@@ -23,6 +23,11 @@ public interface TradeTransactionRepository extends JpaRepository<TradeTransacti
 
     List<TradeTransactionEntity> findByTradeDateLessThanEqualOrderByTradeDateAscIdAsc(LocalDate tradeDate);
 
+    List<TradeTransactionEntity> findByTradeDateLessThanEqualAndAccount_NameIgnoreCaseOrderByTradeDateAscIdAsc(
+            LocalDate tradeDate,
+            String accountName
+    );
+
     List<TradeTransactionEntity> findBySymbolOrderByTradeDateAscIdAsc(String symbol);
 
     List<TradeTransactionEntity> findBySymbolInAndTypeOrderByTradeDateAscIdAsc(List<String> symbols, TransactionType type);

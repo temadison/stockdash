@@ -6,6 +6,19 @@ import { PageShell } from '../../shared/ui/PageShell';
 import { money, percent } from '../../shared/utils/format';
 import { computeCagr, computeReturn } from '../../shared/utils/analytics';
 
+const MAX_CHART_POINTS = 600;
+const MAX_TABLE_ROWS = 500;
+
+function sampleRows(rows: PortfolioPerformancePointDto[], maxPoints: number): PortfolioPerformancePointDto[] {
+  if (rows.length <= maxPoints) return rows;
+  const step = (rows.length - 1) / (maxPoints - 1);
+  const sampled: PortfolioPerformancePointDto[] = [];
+  for (let i = 0; i < maxPoints; i += 1) {
+    sampled.push(rows[Math.round(i * step)]);
+  }
+  return sampled;
+}
+
 export function PerformancePage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -47,27 +60,53 @@ export function PerformancePage() {
     void load(queryAccount, queryStart, queryEnd);
   }, [queryAccount, queryStart, queryEnd]);
 
-  const symbols = Array.from(new Set(rows.flatMap((row) => row.stocks.map((stock) => stock.symbol)))).sort();
+  const chartRows = useMemo(() => sampleRows(rows, MAX_CHART_POINTS), [rows]);
+  const tableRows = useMemo(
+    () => (rows.length > MAX_TABLE_ROWS ? rows.slice(rows.length - MAX_TABLE_ROWS) : rows),
+    [rows]
+  );
+
+  const symbols = useMemo(
+    () => Array.from(new Set(rows.flatMap((row) => row.stocks.map((stock) => stock.symbol)))).sort(),
+    [rows]
+  );
   const startValue = rows[0]?.totalValue ?? 0;
   const endValue = rows[rows.length - 1]?.totalValue ?? 0;
   const net = endValue - startValue;
   const totalReturn = rows.length > 1 ? computeReturn(startValue, endValue) : null;
   const cagr = rows.length > 1 ? computeCagr(startValue, endValue, rows[0].date, rows[rows.length - 1].date) : null;
 
-  const max = Math.max(...rows.map((row) => row.totalValue), 1);
-  const pointsBySymbol = symbols.map((symbol) => {
-    const values = rows.map((row) => row.stocks.find((stock) => stock.symbol === symbol)?.marketValue ?? 0);
-    const points = values.map((value, index) => {
-      const baseline = symbols
-        .slice(0, symbols.indexOf(symbol))
-        .reduce((sum, priorSymbol) => sum + (rows[index].stocks.find((stock) => stock.symbol === priorSymbol)?.marketValue ?? 0), 0);
-      const stackedValue = value + baseline;
-      const x = rows.length <= 1 ? 0 : (index / (rows.length - 1)) * 100;
-      const y = (1 - stackedValue / max) * 100;
-      return `${x},${y}`;
+  const max = useMemo(() => {
+    let currentMax = 1;
+    for (const row of chartRows) {
+      if (row.totalValue > currentMax) currentMax = row.totalValue;
+    }
+    return currentMax;
+  }, [chartRows]);
+
+  const pointsBySymbol = useMemo(() => {
+    const symbolIndexes = new Map<string, number>();
+    symbols.forEach((symbol, index) => symbolIndexes.set(symbol, index));
+
+    return symbols.map((symbol) => {
+      const symbolIndex = symbolIndexes.get(symbol) ?? 0;
+      const points = chartRows.map((row, index) => {
+        let baseline = 0;
+        let value = 0;
+        for (const stock of row.stocks) {
+          const indexForStock = symbolIndexes.get(stock.symbol);
+          if (indexForStock == null) continue;
+          if (indexForStock < symbolIndex) baseline += stock.marketValue;
+          if (stock.symbol === symbol) value = stock.marketValue;
+        }
+        const stackedValue = value + baseline;
+        const x = chartRows.length <= 1 ? 0 : (index / (chartRows.length - 1)) * 100;
+        const y = (1 - stackedValue / max) * 100;
+        return `${x},${y}`;
+      });
+      return { symbol, polyline: points.join(' ') };
     });
-    return { symbol, polyline: points.join(' ') };
-  });
+  }, [chartRows, max, symbols]);
 
   const colors = ['#0f766e', '#2563eb', '#d97706', '#be185d', '#16a34a', '#9333ea', '#0284c7'];
 
@@ -131,6 +170,10 @@ export function PerformancePage() {
             ))}
           </div>
 
+          {rows.length > MAX_CHART_POINTS ? (
+            <p className="muted">Chart sampled to {MAX_CHART_POINTS} points from {rows.length} rows.</p>
+          ) : null}
+
           <div className="chart-wrap">
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="chart-svg">
               {pointsBySymbol.map((series, index) => (
@@ -151,7 +194,7 @@ export function PerformancePage() {
               <tr><th>Date</th><th>Total</th><th>Stocks</th></tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {tableRows.map((row) => (
                 <tr key={row.date}>
                   <td>{row.date}</td>
                   <td>{money.format(row.totalValue)}</td>
@@ -166,6 +209,9 @@ export function PerformancePage() {
               ))}
             </tbody>
           </table>
+          {rows.length > MAX_TABLE_ROWS ? (
+            <p className="muted">Showing latest {MAX_TABLE_ROWS} rows of {rows.length} total.</p>
+          ) : null}
         </>
       ) : null}
     </PageShell>

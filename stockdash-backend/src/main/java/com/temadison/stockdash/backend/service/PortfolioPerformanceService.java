@@ -37,11 +37,7 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
     @Transactional(readOnly = true)
     public List<PortfolioPerformancePoint> performance(String accountName, LocalDate startDate, LocalDate endDate) {
         LocalDate resolvedEnd = endDate == null ? LocalDate.now() : endDate;
-        List<TradeTransactionEntity> transactions = tradeTransactionRepository
-                .findByTradeDateLessThanEqualOrderByTradeDateAscIdAsc(resolvedEnd)
-                .stream()
-                .filter(tx -> includeTransactionForAccount(tx, accountName))
-                .toList();
+        List<TradeTransactionEntity> transactions = loadTransactions(accountName, resolvedEnd);
         if (transactions.isEmpty()) {
             return List.of();
         }
@@ -95,11 +91,12 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
         return points;
     }
 
-    private boolean includeTransactionForAccount(TradeTransactionEntity tx, String accountName) {
+    private List<TradeTransactionEntity> loadTransactions(String accountName, LocalDate resolvedEnd) {
         if (accountName == null || accountName.isBlank() || "TOTAL".equalsIgnoreCase(accountName)) {
-            return true;
+            return tradeTransactionRepository.findByTradeDateLessThanEqualOrderByTradeDateAscIdAsc(resolvedEnd);
         }
-        return tx.getAccount().getName().equalsIgnoreCase(accountName.trim());
+        return tradeTransactionRepository
+                .findByTradeDateLessThanEqualAndAccount_NameIgnoreCaseOrderByTradeDateAscIdAsc(resolvedEnd, accountName.trim());
     }
 
     private Map<String, List<DailyClosePriceEntity>> preloadClosesBySymbol(List<TradeTransactionEntity> transactions, LocalDate endDate) {
