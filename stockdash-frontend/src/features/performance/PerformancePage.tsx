@@ -19,6 +19,11 @@ function sampleRows(rows: PortfolioPerformancePointDto[], maxPoints: number): Po
   return sampled;
 }
 
+function colorForSeries(index: number): string {
+  const hue = (index * 137.508) % 360;
+  return `hsl(${hue.toFixed(1)} 72% 42%)`;
+}
+
 export function PerformancePage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -79,36 +84,29 @@ export function PerformancePage() {
   const max = useMemo(() => {
     let currentMax = 1;
     for (const row of chartRows) {
-      if (row.totalValue > currentMax) currentMax = row.totalValue;
+      for (const stock of row.stocks) {
+        if (stock.marketValue > currentMax) currentMax = stock.marketValue;
+      }
     }
     return currentMax;
   }, [chartRows]);
 
   const pointsBySymbol = useMemo(() => {
-    const symbolIndexes = new Map<string, number>();
-    symbols.forEach((symbol, index) => symbolIndexes.set(symbol, index));
-
     return symbols.map((symbol) => {
-      const symbolIndex = symbolIndexes.get(symbol) ?? 0;
       const points = chartRows.map((row, index) => {
-        let baseline = 0;
-        let value = 0;
-        for (const stock of row.stocks) {
-          const indexForStock = symbolIndexes.get(stock.symbol);
-          if (indexForStock == null) continue;
-          if (indexForStock < symbolIndex) baseline += stock.marketValue;
-          if (stock.symbol === symbol) value = stock.marketValue;
-        }
-        const stackedValue = value + baseline;
+        const value = row.stocks.find((stock) => stock.symbol === symbol)?.marketValue ?? 0;
         const x = chartRows.length <= 1 ? 0 : (index / (chartRows.length - 1)) * 100;
-        const y = (1 - stackedValue / max) * 100;
+        const y = (1 - value / max) * 100;
         return `${x},${y}`;
       });
       return { symbol, polyline: points.join(' ') };
     });
   }, [chartRows, max, symbols]);
 
-  const colors = ['#0f766e', '#2563eb', '#d97706', '#be185d', '#16a34a', '#9333ea', '#0284c7'];
+  const colorBySymbol = useMemo(() => {
+    const entries = symbols.map((symbol, index) => [symbol, colorForSeries(index)] as const);
+    return new Map(entries);
+  }, [symbols]);
 
   const applyFilters = () => {
     const next = new URLSearchParams();
@@ -164,7 +162,7 @@ export function PerformancePage() {
                 className="legend-item"
                 to={`/history?symbol=${encodeURIComponent(symbol)}&startDate=${encodeURIComponent(rows[0].date)}&endDate=${encodeURIComponent(rows[rows.length - 1].date)}&account=${encodeURIComponent(account || 'TOTAL')}`}
               >
-                <span className="legend-dot" style={{ background: colors[index % colors.length] }} />
+                <span className="legend-dot" style={{ background: colorBySymbol.get(symbol) ?? '#334155' }} />
                 {symbol}
               </Link>
             ))}
@@ -181,7 +179,7 @@ export function PerformancePage() {
                   key={series.symbol}
                   points={series.polyline}
                   fill="none"
-                  stroke={colors[index % colors.length]}
+                  stroke={colorBySymbol.get(series.symbol) ?? colorForSeries(index)}
                   strokeWidth="1.2"
                   vectorEffect="non-scaling-stroke"
                 />
