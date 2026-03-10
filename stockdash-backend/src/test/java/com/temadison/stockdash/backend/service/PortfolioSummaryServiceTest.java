@@ -169,4 +169,25 @@ class PortfolioSummaryServiceTest {
                 new BigDecimal("1399.00")
         ));
     }
+
+    @Test
+    void dailySummary_excludesTradesAfterAsOfDate() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "future-trade-fixture.csv",
+                "text/csv",
+                (
+                        "trade_date,account,symbol,type,quantity,price,fee\n" +
+                                "2026-03-06,IRA,AAPL,BUY,10,100,1\n" +
+                                "2026-03-09,IRA,NVDA,BUY,5,120,1\n"
+                ).getBytes()
+        );
+        csvTransactionImportService.importCsv(file);
+
+        PortfolioSnapshot snapshotAsOfMar6 = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 3, 6)).get(0);
+        PortfolioSnapshot snapshotAsOfMar9 = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 3, 9)).get(0);
+
+        assertThat(snapshotAsOfMar6.positions()).extracting(PositionValue::symbol).containsExactly("AAPL");
+        assertThat(snapshotAsOfMar9.positions()).extracting(PositionValue::symbol).containsExactly("AAPL", "NVDA");
+    }
 }

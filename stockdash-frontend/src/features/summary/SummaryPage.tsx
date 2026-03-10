@@ -9,15 +9,17 @@ import { SyncPanel } from '../sync/SyncPanel';
 
 export function SummaryPage() {
   const [date, setDate] = useState(todayIso());
+  const [loadedDate, setLoadedDate] = useState(todayIso());
   const [snapshots, setSnapshots] = useState<PortfolioSnapshotDto[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const load = async () => {
+  const load = async (targetDate = date) => {
     try {
       setLoading(true);
       setError('');
-      setSnapshots(await getDailySummary(date));
+      setSnapshots(await getDailySummary(targetDate));
+      setLoadedDate(targetDate);
     } catch (e) {
       setError((e as Error).message);
       setSnapshots([]);
@@ -27,7 +29,7 @@ export function SummaryPage() {
   };
 
   useEffect(() => {
-    void load();
+    void load(date);
   }, []);
 
   return (
@@ -37,14 +39,14 @@ export function SummaryPage() {
       actions={
         <div className="inline">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <button onClick={() => void load()}>Load</button>
+          <button onClick={() => void load(date)}>Load</button>
           <Link to="/performance?account=TOTAL" className="inline-link">Total Portfolio</Link>
         </div>
       }
     >
       <div className="grid two">
         <article className="card">
-          <UploadPanel onDone={load} />
+          <UploadPanel onDone={() => load(date)} />
         </article>
         <article className="card">
           <SyncPanel />
@@ -56,6 +58,7 @@ export function SummaryPage() {
       {!error && !loading && snapshots.length === 0 ? (
         <p className="muted">No account data found for the selected date.</p>
       ) : null}
+      {!error && snapshots.length > 0 ? <p className="muted">Showing as-of {loadedDate}.</p> : null}
 
       <div className="stack gap-md">
         {snapshots.map((snapshot) => (
@@ -64,7 +67,7 @@ export function SummaryPage() {
               <h2>
                 <Link
                   className="inline-link"
-                  to={`/performance?account=${encodeURIComponent(snapshot.accountName)}&endDate=${encodeURIComponent(date)}`}
+                  to={`/performance?account=${encodeURIComponent(snapshot.accountName)}&endDate=${encodeURIComponent(loadedDate)}`}
                 >
                   {snapshot.accountName}
                 </Link>
