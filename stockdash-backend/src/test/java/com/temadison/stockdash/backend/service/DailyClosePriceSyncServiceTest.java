@@ -129,4 +129,40 @@ class DailyClosePriceSyncServiceTest {
         assertThat(result.statusBySymbol()).containsEntry("AAPL", "local_fallback_stored");
         assertThat(dailyClosePriceRepository.findBySymbolOrderByPriceDateAsc("AAPL")).isNotEmpty();
     }
+
+    @Test
+    void syncForStocks_overwritesLatestStoredCloseWhenSourceChanges() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "sync-fixture.csv",
+                "text/csv",
+                (
+                        "trade_date,account,symbol,type,quantity,price,fee\n" +
+                                "2026-01-01,IRA,AAPL,BUY,10,100,1\n"
+                ).getBytes()
+        );
+        csvTransactionImportService.importCsv(file);
+
+        given(dailySeriesClient.fetchDailyCloseSeries("AAPL"))
+                .willReturn(new SeriesFetchResult(Map.of(
+                        LocalDate.of(2026, 1, 2), new BigDecimal("101.00")
+                ), SeriesFetchStatus.SUCCESS))
+                .willReturn(new SeriesFetchResult(Map.of(
+                        LocalDate.of(2026, 1, 2), new BigDecimal("111.00")
+                ), SeriesFetchStatus.SUCCESS));
+
+        PriceSyncResult first = dailyClosePriceSyncService.syncForStocks(List.of("AAPL"));
+        PriceSyncResult second = dailyClosePriceSyncService.syncForStocks(List.of("AAPL"));
+
+        assertThat(first.pricesStored()).isEqualTo(1);
+        assertThat(second.pricesStored()).isEqualTo(1);
+        assertThat(second.storedBySymbol()).containsEntry("AAPL", 1);
+        assertThat(second.statusBySymbol()).containsEntry("AAPL", "stored");
+        assertThat(dailyClosePriceRepository.findBySymbolAndPriceDate("AAPL", LocalDate.of(2026, 1, 2)))
+                .isPresent()
+                .get()
+                .extracting(price -> price.getClosePrice())
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.BIG_DECIMAL)
+                .isEqualByComparingTo(new BigDecimal("111.00"));
+    }
 }
