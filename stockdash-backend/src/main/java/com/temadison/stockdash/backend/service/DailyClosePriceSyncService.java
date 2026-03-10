@@ -118,7 +118,7 @@ public class DailyClosePriceSyncService implements PriceSyncService {
                 int refreshedLatest = refreshLatestClose(symbol, latestSeriesDate, dailySeries);
                 int changedRows = inserted + refreshedLatest;
                 storedBySymbol.put(symbol, changedRows);
-                statusBySymbol.put(symbol, statusForPersistResult(changedRows, usedLocalFallback));
+                statusBySymbol.put(symbol, statusForPersistResult(inserted, refreshedLatest, usedLocalFallback));
                 pricesStored += changedRows;
             }
         }
@@ -187,11 +187,20 @@ public class DailyClosePriceSyncService implements PriceSyncService {
                 || status == SeriesFetchStatus.CIRCUIT_OPEN;
     }
 
-    private String statusForPersistResult(int inserted, boolean usedLocalFallback) {
-        if (usedLocalFallback) {
-            return inserted == 0 ? "local_fallback_no_new_rows" : "local_fallback_stored";
+    private String statusForPersistResult(int inserted, int refreshedLatest, boolean usedLocalFallback) {
+        if (inserted > 0 && refreshedLatest > 0) {
+            return usedLocalFallback ? "local_fallback_stored_and_updated_latest" : "stored_and_updated_latest";
         }
-        return inserted == 0 ? "no_new_rows" : "stored";
+        if (inserted > 0) {
+            return usedLocalFallback ? "local_fallback_stored" : "stored";
+        }
+        if (refreshedLatest > 0) {
+            return "updated_latest";
+        }
+        if (usedLocalFallback) {
+            return "local_fallback_no_new_rows";
+        }
+        return "no_new_rows";
     }
 
     private int saveIgnoringDuplicates(String symbol, List<DailyClosePriceEntity> toSave) {

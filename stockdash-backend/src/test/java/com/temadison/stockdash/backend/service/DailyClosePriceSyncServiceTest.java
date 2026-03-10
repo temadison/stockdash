@@ -157,7 +157,7 @@ class DailyClosePriceSyncServiceTest {
         assertThat(first.pricesStored()).isEqualTo(1);
         assertThat(second.pricesStored()).isEqualTo(1);
         assertThat(second.storedBySymbol()).containsEntry("AAPL", 1);
-        assertThat(second.statusBySymbol()).containsEntry("AAPL", "stored");
+        assertThat(second.statusBySymbol()).containsEntry("AAPL", "updated_latest");
         assertThat(dailyClosePriceRepository.findBySymbolAndPriceDate("AAPL", LocalDate.of(2026, 1, 2)))
                 .isPresent()
                 .get()

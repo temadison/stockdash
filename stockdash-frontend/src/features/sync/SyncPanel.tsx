@@ -35,7 +35,11 @@ export function SyncPanel() {
     try {
       const syncResult = await syncPrices(stocks);
       setResult(syncResult);
-      setStatus(`Stored ${syncResult.pricesStored} prices across ${syncResult.symbolsWithPurchases}/${syncResult.symbolsRequested} symbols.`);
+      setStatus(
+        syncResult.pricesStored > 0
+          ? `Changed ${syncResult.pricesStored} close-price rows across ${syncResult.symbolsWithPurchases}/${syncResult.symbolsRequested} symbols.`
+          : `No close-price rows changed across ${syncResult.symbolsWithPurchases}/${syncResult.symbolsRequested} symbols.`
+      );
     } catch (error) {
       setStatus((error as Error).message);
       setResult(null);
@@ -53,7 +57,7 @@ export function SyncPanel() {
       {result ? (
         <table>
           <thead>
-            <tr><th>Symbol</th><th>Inserted</th><th>Status</th></tr>
+            <tr><th>Symbol</th><th>Changed</th><th>Status</th></tr>
           </thead>
           <tbody>
             {Array.from(new Set([
