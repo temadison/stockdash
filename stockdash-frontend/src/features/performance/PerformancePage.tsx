@@ -3,11 +3,11 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { PortfolioPerformancePointDto } from '../../shared/types/api';
 import { getPerformance } from '../../shared/api/portfolioApi';
 import { PageShell } from '../../shared/ui/PageShell';
-import { money, percent } from '../../shared/utils/format';
+import { money, percent, todayIso } from '../../shared/utils/format';
 import { computeCagr, computeReturn } from '../../shared/utils/analytics';
 
 const MAX_CHART_POINTS = 600;
-const MAX_TABLE_ROWS = 500;
+const BIWEEKLY_INTERVAL_DAYS = 14;
 
 function sampleRows(rows: PortfolioPerformancePointDto[], maxPoints: number): PortfolioPerformancePointDto[] {
   if (rows.length <= maxPoints) return rows;
@@ -22,6 +22,66 @@ function sampleRows(rows: PortfolioPerformancePointDto[], maxPoints: number): Po
 function colorForSeries(index: number): string {
   const hue = (index * 137.508) % 360;
   return `hsl(${hue.toFixed(1)} 72% 42%)`;
+}
+
+function polarToCartesian(centerX: number, centerY: number, radius: number, angleInDegrees: number) {
+  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180;
+  return {
+    x: centerX + radius * Math.cos(angleInRadians),
+    y: centerY + radius * Math.sin(angleInRadians)
+  };
+}
+
+function describePieSlice(centerX: number, centerY: number, radius: number, startAngle: number, endAngle: number) {
+  const start = polarToCartesian(centerX, centerY, radius, endAngle);
+  const end = polarToCartesian(centerX, centerY, radius, startAngle);
+  const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
+
+  return [
+    `M ${centerX} ${centerY}`,
+    `L ${start.x} ${start.y}`,
+    `A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`,
+    'Z'
+  ].join(' ');
+}
+
+function parseIsoDate(isoDate: string): number {
+  return Date.parse(`${isoDate}T00:00:00Z`);
+}
+
+function subtractDays(isoDate: string, days: number): string {
+  const date = new Date(parseIsoDate(isoDate));
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+function sampleBiweeklyRows(rows: PortfolioPerformancePointDto[], anchorDate: string): PortfolioPerformancePointDto[] {
+  if (rows.length === 0) return [];
+
+  const earliestDate = rows[0].date;
+  const latestDate = rows[rows.length - 1].date;
+  const effectiveAnchor = parseIsoDate(anchorDate) < parseIsoDate(latestDate) ? anchorDate : latestDate;
+  const selected: PortfolioPerformancePointDto[] = [];
+
+  let rowIndex = rows.length - 1;
+  let targetDate = effectiveAnchor;
+
+  while (rowIndex >= 0 && parseIsoDate(targetDate) >= parseIsoDate(earliestDate)) {
+    while (rowIndex >= 0 && parseIsoDate(rows[rowIndex].date) > parseIsoDate(targetDate)) {
+      rowIndex -= 1;
+    }
+
+    if (rowIndex < 0) break;
+
+    const row = rows[rowIndex];
+    if (selected[selected.length - 1]?.date !== row.date) {
+      selected.push(row);
+    }
+
+    targetDate = subtractDays(targetDate, BIWEEKLY_INTERVAL_DAYS);
+  }
+
+  return selected;
 }
 
 export function PerformancePage() {
@@ -67,7 +127,7 @@ export function PerformancePage() {
 
   const chartRows = useMemo(() => sampleRows(rows, MAX_CHART_POINTS), [rows]);
   const tableRows = useMemo(
-    () => (rows.length > MAX_TABLE_ROWS ? rows.slice(rows.length - MAX_TABLE_ROWS) : rows),
+    () => sampleBiweeklyRows(rows, todayIso()),
     [rows]
   );
 
@@ -107,6 +167,30 @@ export function PerformancePage() {
     const entries = symbols.map((symbol, index) => [symbol, colorForSeries(index)] as const);
     return new Map(entries);
   }, [symbols]);
+  const latestRow = rows[rows.length - 1] ?? null;
+  const allocationSlices = useMemo(() => {
+    if (!latestRow || latestRow.totalValue <= 0) return [];
+
+    let runningAngle = 0;
+    return [...latestRow.stocks]
+      .filter((stock) => stock.marketValue > 0)
+      .sort((a, b) => b.marketValue - a.marketValue)
+      .map((stock) => {
+        const weight = stock.marketValue / latestRow.totalValue;
+        const startAngle = runningAngle;
+        const sweepAngle = weight * 360;
+        const endAngle = runningAngle + sweepAngle;
+        runningAngle = endAngle;
+
+        return {
+          symbol: stock.symbol,
+          marketValue: stock.marketValue,
+          weight,
+          path: describePieSlice(50, 50, 42, startAngle, endAngle),
+          color: colorBySymbol.get(stock.symbol) ?? '#334155'
+        };
+      });
+  }, [colorBySymbol, latestRow]);
 
   const applyFilters = () => {
     const next = new URLSearchParams();
@@ -155,18 +239,47 @@ export function PerformancePage() {
             </article>
           </div>
 
-          <div className="legend">
-            {symbols.map((symbol, index) => (
-              <Link
-                key={symbol}
-                className="legend-item"
-                to={`/history?symbol=${encodeURIComponent(symbol)}&startDate=${encodeURIComponent(rows[0].date)}&endDate=${encodeURIComponent(rows[rows.length - 1].date)}&account=${encodeURIComponent(account || 'TOTAL')}`}
-              >
-                <span className="legend-dot" style={{ background: colorBySymbol.get(symbol) ?? '#334155' }} />
-                {symbol}
-              </Link>
-            ))}
-          </div>
+          {allocationSlices.length > 0 ? (
+            <section className="allocation-card">
+              <div className="inline spread">
+                <div>
+                  <h2>Current Allocation</h2>
+                  <p className="muted">Latest portfolio value split by stock as of {latestRow?.date}.</p>
+                </div>
+                <strong>{money.format(latestRow?.totalValue ?? 0)}</strong>
+              </div>
+              <div className="allocation-layout">
+                <div className="allocation-chart-wrap" aria-hidden="true">
+                  <svg viewBox="0 0 100 100" className="allocation-chart">
+                    {allocationSlices.map((slice) => (
+                      <path
+                        key={slice.symbol}
+                        d={slice.path}
+                        fill={slice.color}
+                        stroke="#ffffff"
+                        strokeWidth="1.2"
+                      />
+                    ))}
+                    <circle cx="50" cy="50" r="18" fill="#fffdf8" />
+                  </svg>
+                </div>
+                <div className="allocation-labels">
+                  {allocationSlices.map((slice) => (
+                    <Link
+                      key={slice.symbol}
+                      className="allocation-label allocation-link"
+                      to={`/history?symbol=${encodeURIComponent(slice.symbol)}&startDate=${encodeURIComponent(rows[0].date)}&endDate=${encodeURIComponent(rows[rows.length - 1].date)}&account=${encodeURIComponent(account || 'TOTAL')}`}
+                    >
+                      <span className="legend-dot" style={{ background: slice.color }} />
+                      <span className="allocation-symbol">{slice.symbol}</span>
+                      <span className="allocation-weight">{percent.format(slice.weight)}</span>
+                      <span className="allocation-value">{money.format(slice.marketValue)}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           {rows.length > MAX_CHART_POINTS ? (
             <p className="muted">Chart sampled to {MAX_CHART_POINTS} points from {rows.length} rows.</p>
@@ -187,7 +300,7 @@ export function PerformancePage() {
             </svg>
           </div>
 
-          <table>
+          <table className="compact-table">
             <thead>
               <tr><th>Date</th><th>Total</th><th>Stocks</th></tr>
             </thead>
@@ -207,9 +320,7 @@ export function PerformancePage() {
               ))}
             </tbody>
           </table>
-          {rows.length > MAX_TABLE_ROWS ? (
-            <p className="muted">Showing latest {MAX_TABLE_ROWS} rows of {rows.length} total.</p>
-          ) : null}
+          <p className="muted">Showing one row every 14 days, working backward from the latest current-range date.</p>
         </>
       ) : null}
     </PageShell>

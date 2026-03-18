@@ -83,6 +83,7 @@ export function HistoryPage() {
     x: rows.length <= 1 ? 0 : (index / (rows.length - 1)) * 100,
     y: 0
   }));
+  const tableRows = [...rows].reverse();
   const min = rows.length ? Math.min(...rows.map((row) => row.closePrice)) : 0;
   const max = rows.length ? Math.max(...rows.map((row) => row.closePrice)) : 0;
   const spread = Math.max(max - min, 0.01);
@@ -146,7 +147,7 @@ export function HistoryPage() {
               <tr><th>Date</th><th>Close</th></tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {tableRows.map((row) => (
                 <tr key={row.date}>
                   <td>{row.date}</td>
                   <td>{money.format(row.closePrice)}</td>

@@ -5,6 +5,7 @@ import type { PriceSyncResultDto } from '../../shared/types/api';
 export function SyncPanel() {
   const [symbolsText, setSymbolsText] = useState('AAPL,MSFT');
   const [status, setStatus] = useState('');
+  const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<PriceSyncResultDto | null>(null);
 
   useEffect(() => {
@@ -33,6 +34,9 @@ export function SyncPanel() {
     }
 
     try {
+      setSyncing(true);
+      setResult(null);
+      setStatus(`Syncing ${stocks.length} symbol${stocks.length === 1 ? '' : 's'}...`);
       const syncResult = await syncPrices(stocks);
       setResult(syncResult);
       setStatus(
@@ -43,6 +47,8 @@ export function SyncPanel() {
     } catch (error) {
       setStatus((error as Error).message);
       setResult(null);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -52,8 +58,24 @@ export function SyncPanel() {
         <span>Sync Symbols</span>
         <input value={symbolsText} onChange={(e) => setSymbolsText(e.target.value)} placeholder="AAPL,MSFT,ASML" />
       </label>
-      <button type="submit">Run Sync</button>
-      {status ? <p className="muted">{status}</p> : null}
+      <button type="submit" disabled={syncing}>{syncing ? 'Syncing...' : 'Run Sync'}</button>
+      {status ? <p className={syncing ? 'sync-status syncing' : 'muted'}>{status}</p> : null}
+      {result ? (
+        <div className="summary-grid">
+          <article className="summary-card">
+            <div className="summary-label">Symbols Requested</div>
+            <div className="summary-value">{result.symbolsRequested}</div>
+          </article>
+          <article className="summary-card">
+            <div className="summary-label">With Purchase History</div>
+            <div className="summary-value">{result.symbolsWithPurchases}</div>
+          </article>
+          <article className="summary-card">
+            <div className="summary-label">Rows Stored</div>
+            <div className={`summary-value ${result.pricesStored > 0 ? 'status-ok' : ''}`}>{result.pricesStored}</div>
+          </article>
+        </div>
+      ) : null}
       {result ? (
         <table>
           <thead>

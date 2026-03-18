@@ -142,6 +142,11 @@ td {
   border-bottom: 1px solid #edf2ee;
 }
 
+.compact-table th,
+.compact-table td {
+  padding: 0.28rem 0.4rem;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -164,9 +169,23 @@ button {
   font-weight: 700;
 }
 
+button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
 .error {
   color: var(--danger);
   font-weight: 600;
+}
+
+.sync-status {
+  margin: 0.2rem 0;
+  font-weight: 600;
+}
+
+.sync-status.syncing {
+  color: var(--brand);
 }
 
 .inline-link {
@@ -196,6 +215,74 @@ table a {
   border-radius: 12px;
   background: #fff;
   padding: 10px;
+}
+
+.allocation-card {
+  margin-top: 12px;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.allocation-layout {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.allocation-chart-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.allocation-chart {
+  width: min(100%, 280px);
+  height: auto;
+  display: block;
+}
+
+.allocation-labels {
+  display: grid;
+  gap: 8px;
+}
+
+.allocation-label {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid #edf2ee;
+  border-radius: 10px;
+  background: #fcfdfa;
+}
+
+.allocation-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.allocation-link:hover {
+  border-color: #cdd8cf;
+  background: #f5f8f3;
+}
+
+.allocation-symbol {
+  font-weight: 700;
+}
+
+.allocation-weight {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.allocation-value {
+  justify-self: end;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .summary-label {
@@ -260,6 +347,10 @@ table a {
 
 @media (max-width: 800px) {
   .grid.two {
+    grid-template-columns: 1fr;
+  }
+
+  .allocation-layout {
     grid-template-columns: 1fr;
   }
 }
