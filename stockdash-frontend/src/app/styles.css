@@ -228,8 +228,8 @@ table a {
 .allocation-layout {
   margin-top: 10px;
   display: grid;
-  grid-template-columns: minmax(220px, 320px) 1fr;
-  gap: 16px;
+  grid-template-columns: minmax(420px, 560px) minmax(180px, 0.85fr);
+  gap: 10px;
   align-items: center;
 }
 
@@ -239,25 +239,26 @@ table a {
 }
 
 .allocation-chart {
-  width: min(100%, 280px);
+  width: min(100%, 480px);
   height: auto;
   display: block;
 }
 
 .allocation-labels {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .allocation-label {
   display: grid;
   grid-template-columns: auto auto auto 1fr;
-  gap: 8px;
+  gap: 5px;
   align-items: center;
-  padding: 0.45rem 0.55rem;
+  padding: 0.24rem 0.38rem;
   border: 1px solid #edf2ee;
   border-radius: 10px;
   background: #fcfdfa;
+  font-size: 0.88rem;
 }
 
 .allocation-link {
@@ -277,12 +278,14 @@ table a {
 .allocation-weight {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  font-size: 0.84rem;
 }
 
 .allocation-value {
   justify-self: end;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  font-size: 0.84rem;
 }
 
 .summary-label {
