@@ -79,22 +79,29 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Validate NVD API key is configured
+      - name: Detect NVD API key
+        id: nvd_api_key
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
-          if [ -z "$NVD_API_KEY" ]; then
-            echo "NVD_API_KEY secret is not configured."
-            exit 1
+          if [ -n "$NVD_API_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Skip OWASP scan when NVD API key is missing
+        if: steps.nvd_api_key.outputs.configured != 'true'
+        run: echo "::warning::NVD_API_KEY secret is not configured. Skipping OWASP dependency scan and SBOM generation."
+
       - name: Run OWASP scan + SBOM generation
+        if: steps.nvd_api_key.outputs.configured == 'true'
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: ./gradlew --no-daemon -PjavaVersion=21 :stockdash-backend:securityScan
 
       - name: Upload security artifacts
-        if: always()
+        if: always() && steps.nvd_api_key.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: stockdash-backend-security-artifacts
