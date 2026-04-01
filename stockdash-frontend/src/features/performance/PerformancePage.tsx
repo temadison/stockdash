@@ -99,6 +99,8 @@ export function PerformancePage() {
   const [accounts, setAccounts] = useState<string[]>([]);
   const [startDate, setStartDate] = useState(queryStart);
   const [endDate, setEndDate] = useState(queryEnd);
+  const [hasCustomStartDate, setHasCustomStartDate] = useState(queryStart.length > 0);
+  const [hasCustomEndDate, setHasCustomEndDate] = useState(queryEnd.length > 0);
   const [rows, setRows] = useState<PortfolioPerformancePointDto[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -127,6 +129,8 @@ export function PerformancePage() {
     setAccount(queryAccount);
     setStartDate(queryStart);
     setEndDate(queryEnd);
+    setHasCustomStartDate(queryStart.length > 0);
+    setHasCustomEndDate(queryEnd.length > 0);
     void load(queryAccount, queryStart, queryEnd);
   }, [queryAccount, queryStart, queryEnd]);
 
@@ -214,8 +218,8 @@ export function PerformancePage() {
   const applyFilters = () => {
     const next = new URLSearchParams();
     if (account) next.set('account', account);
-    if (startDate) next.set('startDate', startDate);
-    if (endDate) next.set('endDate', endDate);
+    if (hasCustomStartDate && startDate) next.set('startDate', startDate);
+    if (hasCustomEndDate && endDate) next.set('endDate', endDate);
     navigate(`/performance?${next.toString()}`);
   };
 
@@ -231,8 +235,22 @@ export function PerformancePage() {
               <option key={accountName} value={accountName}>{accountName}</option>
             ))}
           </select>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              setHasCustomStartDate(e.target.value.length > 0);
+            }}
+          />
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              setHasCustomEndDate(e.target.value.length > 0);
+            }}
+          />
           <button onClick={applyFilters}>Load</button>
         </div>
       }
