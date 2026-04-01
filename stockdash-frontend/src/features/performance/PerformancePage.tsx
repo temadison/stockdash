@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { PortfolioPerformancePointDto } from '../../shared/types/api';
-import { getPerformance } from '../../shared/api/portfolioApi';
+import { getDailySummary, getPerformance } from '../../shared/api/portfolioApi';
 import { PageShell } from '../../shared/ui/PageShell';
 import { money, percent, todayIso } from '../../shared/utils/format';
 import { computeCagr, computeReturn } from '../../shared/utils/analytics';
@@ -84,14 +84,19 @@ function sampleBiweeklyRows(rows: PortfolioPerformancePointDto[], anchorDate: st
   return selected;
 }
 
+function normalizeAccount(accountName: string) {
+  return accountName.trim().toUpperCase() === 'TOTAL' ? '' : accountName;
+}
+
 export function PerformancePage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const queryAccount = useMemo(() => params.get('account') ?? '', [params]);
+  const queryAccount = useMemo(() => normalizeAccount(params.get('account') ?? ''), [params]);
   const queryStart = useMemo(() => params.get('startDate') ?? '', [params]);
   const queryEnd = useMemo(() => params.get('endDate') ?? '', [params]);
 
   const [account, setAccount] = useState(queryAccount);
+  const [accounts, setAccounts] = useState<string[]>([]);
   const [startDate, setStartDate] = useState(queryStart);
   const [endDate, setEndDate] = useState(queryEnd);
   const [rows, setRows] = useState<PortfolioPerformancePointDto[]>([]);
@@ -124,6 +129,20 @@ export function PerformancePage() {
     setEndDate(queryEnd);
     void load(queryAccount, queryStart, queryEnd);
   }, [queryAccount, queryStart, queryEnd]);
+
+  useEffect(() => {
+    const loadAccounts = async () => {
+      try {
+        const snapshots = await getDailySummary(todayIso());
+        const nextAccounts = Array.from(new Set(snapshots.map((snapshot) => snapshot.accountName))).sort((a, b) => a.localeCompare(b));
+        setAccounts(nextAccounts);
+      } catch {
+        setAccounts((current) => current);
+      }
+    };
+
+    void loadAccounts();
+  }, []);
 
   const chartRows = useMemo(() => sampleRows(rows, MAX_CHART_POINTS), [rows]);
   const tableRows = useMemo(
@@ -206,7 +225,12 @@ export function PerformancePage() {
       subtitle="Raw series view from /api/portfolio/performance"
       actions={
         <div className="inline">
-          <input placeholder="Account (optional)" value={account} onChange={(e) => setAccount(e.target.value)} />
+          <select value={account} onChange={(e) => setAccount(e.target.value)}>
+            <option value="">All Accounts</option>
+            {accounts.map((accountName) => (
+              <option key={accountName} value={accountName}>{accountName}</option>
+            ))}
+          </select>
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           <button onClick={applyFilters}>Load</button>
