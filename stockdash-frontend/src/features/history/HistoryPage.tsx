@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { DailyClosePricePointDto } from '../../shared/types/api';
 import { getHistory, getPerformance, getSymbols } from '../../shared/api/portfolioApi';
@@ -19,6 +20,7 @@ export function HistoryPage() {
   const [rows, setRows] = useState<DailyClosePricePointDto[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const load = async (targetSymbol = symbol, targetStartDate = startDate, targetEndDate = endDate) => {
     try {
@@ -91,11 +93,45 @@ export function HistoryPage() {
     point.y = (1 - (point.closePrice - min) / spread) * 100;
   });
   const polyline = points.map((point) => `${point.x},${point.y}`).join(' ');
+  const hoveredPoint = hoverIndex == null ? null : points[hoverIndex] ?? null;
   const startPrice = rows[0]?.closePrice ?? 0;
   const endPrice = rows[rows.length - 1]?.closePrice ?? 0;
   const net = endPrice - startPrice;
   const totalReturn = rows.length > 1 ? computeReturn(startPrice, endPrice) : null;
   const cagr = rows.length > 1 ? computeCagr(startPrice, endPrice, rows[0].date, rows[rows.length - 1].date) : null;
+
+  const clearHover = () => setHoverIndex(null);
+
+  const handleChartHover = (event: ReactMouseEvent<SVGSVGElement>) => {
+    if (points.length === 0) {
+      setHoverIndex(null);
+      return;
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (bounds.width === 0 || bounds.height === 0) {
+      setHoverIndex(null);
+      return;
+    }
+
+    const x = ((event.clientX - bounds.left) / bounds.width) * 100;
+    const y = ((event.clientY - bounds.top) / bounds.height) * 100;
+
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    points.forEach((point, index) => {
+      const dx = point.x - x;
+      const dy = point.y - y;
+      const distance = Math.hypot(dx, dy);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+
+    setHoverIndex(nearestDistance <= 8 ? nearestIndex : null);
+  };
 
   return (
     <PageShell
@@ -137,9 +173,53 @@ export function HistoryPage() {
           </div>
 
           <div className="chart-wrap">
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="chart-svg">
-              <polyline points={polyline} fill="none" stroke="#0f766e" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-            </svg>
+            <div className="chart-plot">
+              <svg
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                className="chart-svg chart-svg-interactive"
+                onMouseMove={handleChartHover}
+                onMouseLeave={clearHover}
+              >
+                <rect x="0" y="0" width="100" height="100" fill="transparent" />
+                <polyline points={polyline} fill="none" stroke="#0f766e" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                {hoveredPoint ? (
+                  <>
+                    <line
+                      x1={hoveredPoint.x}
+                      y1={hoveredPoint.y}
+                      x2={hoveredPoint.x}
+                      y2="100"
+                      stroke="#99f6e4"
+                      strokeWidth="1"
+                      strokeDasharray="2 2"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </>
+                ) : null}
+              </svg>
+              {hoveredPoint ? (
+                <div
+                  className="chart-hover-dot"
+                  style={{
+                    left: `${hoveredPoint.x}%`,
+                    top: `${hoveredPoint.y}%`
+                  }}
+                />
+              ) : null}
+              {hoveredPoint ? (
+                <div
+                  className="chart-tooltip"
+                  style={{
+                    left: `${Math.min(Math.max(hoveredPoint.x, 14), 86)}%`,
+                    top: `${Math.max(hoveredPoint.y - 10, 10)}%`
+                  }}
+                >
+                  <strong>{hoveredPoint.date}</strong>
+                  <span>{money.format(hoveredPoint.closePrice)}</span>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <table>
