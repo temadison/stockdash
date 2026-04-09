@@ -5,6 +5,7 @@ import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
 import com.temadison.stockdash.backend.domain.TransactionType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -32,6 +33,6 @@ public interface TradeTransactionRepository extends JpaRepository<TradeTransacti
 
     List<TradeTransactionEntity> findBySymbolInAndTypeOrderByTradeDateAscIdAsc(List<String> symbols, TransactionType type);
 
-    @Query("select distinct t.symbol from TradeTransactionEntity t order by t.symbol asc")
-    List<String> findDistinctSymbolsOrderBySymbolAsc();
+    @Query("select distinct t.symbol from TradeTransactionEntity t where t.type in :securityTypes order by t.symbol asc")
+    List<String> findDistinctSymbolsOrderBySymbolAsc(@Param("securityTypes") List<TransactionType> securityTypes);
 }

@@ -185,10 +185,11 @@ public class CsvTransactionImportService implements CsvImportService {
         );
 
         TradeTransactionEntity entity = new TradeTransactionEntity();
+        TransactionType type = parseType(getRequiredValue(record, HEADER_TYPE, row), row);
         entity.setAccount(account);
         entity.setTradeDate(parseDate(getRequiredValue(record, HEADER_TRADE_DATE, row), row));
-        entity.setSymbol(SymbolNormalizer.normalize(getRequiredValue(record, HEADER_SYMBOL, row)));
-        entity.setType(parseType(getRequiredValue(record, HEADER_TYPE, row), row));
+        entity.setType(type);
+        entity.setSymbol(resolveSymbol(record.get(HEADER_SYMBOL), type, row));
         entity.setQuantity(parsePositiveDecimal(getRequiredValue(record, HEADER_QUANTITY, row), row, HEADER_QUANTITY));
         entity.setPrice(parseNonNegativeDecimal(getRequiredValue(record, HEADER_PRICE, row), row, HEADER_PRICE));
         entity.setFee(parseNonNegativeDecimal(getRequiredValue(record, HEADER_FEE, row), row, HEADER_FEE));
@@ -221,8 +222,23 @@ public class CsvTransactionImportService implements CsvImportService {
         try {
             return TransactionType.valueOf(value.trim().toUpperCase(Locale.US));
         } catch (IllegalArgumentException e) {
-            throw new CsvImportException("Row " + row + ": type must be BUY or SELL.");
+            throw new CsvImportException("Row " + row + ": type must be one of BUY, SELL, CASH_DEPOSIT, CASH_WITHDRAWAL, DIVIDEND, INTEREST, or CASH_FEE.");
         }
+    }
+
+    private String resolveSymbol(String rawValue, TransactionType type, int row) {
+        if (type.isExplicitCashTransaction()) {
+            if (rawValue == null || rawValue.isBlank()) {
+                return "CASH";
+            }
+            return SymbolNormalizer.normalize(rawValue.trim());
+        }
+
+        if (rawValue == null || rawValue.isBlank()) {
+            throw new CsvImportException("Row " + row + ": symbol is required.");
+        }
+
+        return SymbolNormalizer.normalize(rawValue.trim());
     }
 
     private BigDecimal parsePositiveDecimal(String value, int row, String fieldName) {

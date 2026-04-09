@@ -7,6 +7,8 @@
   --brand: #0f766e;
   --brand-soft: #d8f1ec;
   --danger: #b91c1c;
+  --chart-pad: 10px;
+  --chart-height: 280px;
   font-family: "Avenir Next", "Trebuchet MS", "Gill Sans", sans-serif;
 }
 
@@ -310,17 +312,31 @@ table a {
 
 .chart-wrap {
   position: relative;
-  margin-top: 12px;
   border: 1px solid var(--edge);
   border-radius: 12px;
   background: #fff;
-  padding: 10px;
+  padding: var(--chart-pad);
   overflow: hidden;
+}
+
+.chart-frame {
+  margin-top: 12px;
+}
+
+.chart-stage {
+  min-width: 0;
+}
+
+.chart-body {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
 }
 
 .chart-svg {
   width: 100%;
-  height: 280px;
+  height: var(--chart-height);
   display: block;
 }
 
@@ -330,6 +346,58 @@ table a {
 
 .chart-svg-interactive {
   cursor: crosshair;
+}
+
+.chart-y-axis {
+  position: relative;
+  height: calc(var(--chart-height) + (var(--chart-pad) * 2));
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-y-tick {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+.chart-x-axis {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.chart-x-axis-labels {
+  position: relative;
+  height: 1.25rem;
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-x-axis-spacer {
+  height: 1px;
+}
+
+.chart-x-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.chart-axis-line {
+  stroke: #94a3b8;
+  stroke-width: 1;
+}
+
+.chart-grid-line {
+  stroke: #e2e8f0;
+  stroke-width: 1;
 }
 
 .chart-tooltip {
@@ -398,5 +466,24 @@ table a {
 
   .allocation-layout {
     grid-template-columns: 1fr;
+  }
+
+  .chart-frame {
+    margin-top: 12px;
+  }
+
+  .chart-body {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .chart-y-axis,
+  .chart-x-axis-labels {
+    font-size: 0.76rem;
+  }
+
+  .chart-x-axis {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 8px;
   }
 }

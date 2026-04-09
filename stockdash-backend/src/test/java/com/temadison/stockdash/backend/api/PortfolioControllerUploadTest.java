@@ -87,7 +87,7 @@ class PortfolioControllerUploadTest {
         mockMvc.perform(multipart("/api/portfolio/transactions/upload").file(file))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Bad Request"))
-                .andExpect(jsonPath("$.detail", containsString("type must be BUY or SELL")));
+                .andExpect(jsonPath("$.detail", containsString("type must be one of BUY, SELL, CASH_DEPOSIT, CASH_WITHDRAWAL, DIVIDEND, INTEREST, or CASH_FEE")));
     }
 
     @Test

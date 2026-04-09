@@ -12,6 +12,9 @@ public final class PositionAccumulator {
     private BigDecimal lastKnownPrice = BigDecimal.ZERO;
 
     public void apply(TradeTransactionEntity transaction) {
+        if (!transaction.getType().isSecurityTrade()) {
+            return;
+        }
         BigDecimal quantity = transaction.getQuantity();
         BigDecimal signedQuantity = transaction.getType() == TransactionType.BUY ? quantity : quantity.negate();
         netQuantity = netQuantity.add(signedQuantity);

@@ -9,6 +9,7 @@ export type PortfolioSnapshotDto = {
   accountName: string;
   asOfDate: string;
   totalValue: number;
+  cashBalance: number;
   positions: PositionValueDto[];
 };
 
@@ -41,6 +42,7 @@ export type PortfolioPerformancePointDto = {
   date: string;
   totalValue: number;
   netAmountSpent: number;
+  cashBalance: number;
   stocks: StockPerformanceValueDto[];
 };
 

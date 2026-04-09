@@ -75,6 +75,7 @@ class PortfolioSummaryServiceTest {
         PortfolioSnapshot snapshotBefore = beforeSellAndMsft.get(0);
         assertThat(snapshotBefore.accountName()).isEqualTo("IRA");
         assertThat(snapshotBefore.totalValue()).isEqualByComparingTo(new BigDecimal("1798.00"));
+        assertThat(snapshotBefore.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
         assertThat(snapshotBefore.positions()).containsExactly(new PositionValue(
                 "AAPL",
                 15L,
@@ -87,6 +88,7 @@ class PortfolioSummaryServiceTest {
 
         PortfolioSnapshot snapshotAfter = afterAllTrades.get(0);
         assertThat(snapshotAfter.totalValue()).isEqualByComparingTo(new BigDecimal("1955.00"));
+        assertThat(snapshotAfter.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
         assertThat(snapshotAfter.positions()).containsExactly(
                 new PositionValue("AAPL", 12L, new BigDecimal("130.000000"), new BigDecimal("1557.00")),
                 new PositionValue("MSFT", 2L, new BigDecimal("200.000000"), new BigDecimal("398.00"))
@@ -121,6 +123,7 @@ class PortfolioSummaryServiceTest {
                 new BigDecimal("140.00"),
                 new BigDecimal("1677.00")
         ));
+        assertThat(snapshot.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
         assertThat(snapshot.totalValue()).isEqualByComparingTo(new BigDecimal("1677.00"));
     }
 
@@ -168,6 +171,8 @@ class PortfolioSummaryServiceTest {
                 new BigDecimal("140.000000"),
                 new BigDecimal("1399.00")
         ));
+        assertThat(jan3.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
+        assertThat(jan6.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
     }
 
     @Test
@@ -189,5 +194,33 @@ class PortfolioSummaryServiceTest {
 
         assertThat(snapshotAsOfMar6.positions()).extracting(PositionValue::symbol).containsExactly("AAPL");
         assertThat(snapshotAsOfMar9.positions()).extracting(PositionValue::symbol).containsExactly("AAPL", "NVDA");
+    }
+
+    @Test
+    void dailySummary_includesCashBalanceForCashAwareAccounts() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "cash-fixture.csv",
+                "text/csv",
+                (
+                        "trade_date,account,symbol,type,quantity,price,fee\n" +
+                        "2026-01-01,IRA,CASH,CASH_DEPOSIT,10000,1,0\n" +
+                        "2026-01-02,IRA,AAPL,BUY,10,100,1\n" +
+                        "2026-01-03,IRA,CASH,DIVIDEND,50,1,0\n" +
+                        "2026-01-04,IRA,CASH,CASH_WITHDRAWAL,100,1,0\n"
+                ).getBytes()
+        );
+        csvTransactionImportService.importCsv(file);
+
+        PortfolioSnapshot snapshot = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 4)).get(0);
+
+        assertThat(snapshot.cashBalance()).isEqualByComparingTo(new BigDecimal("8949.00"));
+        assertThat(snapshot.positions()).containsExactly(new PositionValue(
+                "AAPL",
+                10L,
+                new BigDecimal("100.000000"),
+                new BigDecimal("1000.00")
+        ));
+        assertThat(snapshot.totalValue()).isEqualByComparingTo(new BigDecimal("9949.00"));
     }
 }

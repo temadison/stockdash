@@ -66,9 +66,41 @@ class PortfolioPerformanceServiceTest {
 
         assertThat(iraOnly).hasSize(1);
         assertThat(iraOnly.get(0).totalValue()).isEqualByComparingTo("999.00");
+        assertThat(iraOnly.get(0).cashBalance()).isEqualByComparingTo("0.00");
 
         assertThat(total).hasSize(1);
-        assertThat(total.get(0).totalValue()).isEqualByComparingTo("2998.00");
+        assertThat(total.get(0).totalValue()).isEqualByComparingTo("1998.00");
+        assertThat(total.get(0).cashBalance()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void includesCashBalanceForCashAwareAccounts() {
+        PortfolioPerformanceService service = new PortfolioPerformanceService(
+                tradeTransactionRepository,
+                dailyClosePriceRepository
+        );
+
+        TradeTransactionEntity deposit = trade("IRA", "CASH", TransactionType.CASH_DEPOSIT, "1000", "1.00", "0.00", LocalDate.of(2026, 1, 1));
+        TradeTransactionEntity buy = trade("IRA", "AAPL", TransactionType.BUY, "5", "100.00", "1.00", LocalDate.of(2026, 1, 2));
+        TradeTransactionEntity dividend = trade("IRA", "CASH", TransactionType.DIVIDEND, "10", "1.00", "0.00", LocalDate.of(2026, 1, 3));
+
+        when(tradeTransactionRepository.findByTradeDateLessThanEqualAndAccount_NameIgnoreCaseOrderByTradeDateAscIdAsc(any(), anyString()))
+                .thenReturn(List.of(deposit, buy, dividend));
+        when(dailyClosePriceRepository.findBySymbolAndPriceDateLessThanEqualOrderByPriceDateDesc(anyString(), any()))
+                .thenReturn(List.of());
+
+        List<PortfolioPerformancePoint> points = service.performance("IRA", null, LocalDate.of(2026, 1, 3));
+
+        assertThat(points).hasSize(3);
+        assertThat(points.get(0).cashBalance()).isEqualByComparingTo("1000.00");
+        assertThat(points.get(0).totalValue()).isEqualByComparingTo("1000.00");
+        assertThat(points.get(0).netAmountSpent()).isEqualByComparingTo("1000.00");
+        assertThat(points.get(1).cashBalance()).isEqualByComparingTo("499.00");
+        assertThat(points.get(1).totalValue()).isEqualByComparingTo("999.00");
+        assertThat(points.get(1).netAmountSpent()).isEqualByComparingTo("1000.00");
+        assertThat(points.get(2).cashBalance()).isEqualByComparingTo("509.00");
+        assertThat(points.get(2).totalValue()).isEqualByComparingTo("1009.00");
+        assertThat(points.get(2).netAmountSpent()).isEqualByComparingTo("1000.00");
     }
 
     private TradeTransactionEntity trade(

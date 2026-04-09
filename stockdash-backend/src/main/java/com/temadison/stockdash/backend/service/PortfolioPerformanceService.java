@@ -52,8 +52,15 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
         Map<String, List<DailyClosePriceEntity>> closesBySymbol = preloadClosesBySymbol(transactions, resolvedEnd);
         Map<String, Integer> closeCursorBySymbol = new HashMap<>();
         Map<String, BigDecimal> latestCloseBySymbol = new HashMap<>();
+        Map<String, Boolean> tracksCashByAccount = new HashMap<>();
+        for (TradeTransactionEntity transaction : transactions) {
+            if (transaction.getType().isExplicitCashTransaction()) {
+                tracksCashByAccount.put(transaction.getAccount().getName(), true);
+            }
+        }
 
-        Map<String, PositionAccumulator> positions = new HashMap<>();
+        Map<String, Map<String, PositionAccumulator>> positionsByAccount = new HashMap<>();
+        Map<String, BigDecimal> cashBalanceByAccount = new HashMap<>();
         int txIndex = 0;
         BigDecimal netAmountSpent = BigDecimal.ZERO;
         List<PortfolioPerformancePoint> points = new ArrayList<>();
@@ -62,41 +69,80 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
             while (txIndex < transactions.size() && !transactions.get(txIndex).getTradeDate().isAfter(day)) {
                 TradeTransactionEntity tx = transactions.get(txIndex);
                 BigDecimal gross = tx.getQuantity().multiply(tx.getPrice());
-                if (tx.getType() == TransactionType.BUY) {
-                    netAmountSpent = netAmountSpent.add(gross).add(tx.getFee());
-                } else {
-                    netAmountSpent = netAmountSpent.subtract(gross).add(tx.getFee());
+                String txAccountName = tx.getAccount().getName();
+                boolean tracksCash = Boolean.TRUE.equals(tracksCashByAccount.get(txAccountName));
+                if (tx.getType().isSecurityTrade()) {
+                    if (!tracksCash) {
+                        if (tx.getType() == TransactionType.BUY) {
+                            netAmountSpent = netAmountSpent.add(gross).add(tx.getFee());
+                        } else {
+                            netAmountSpent = netAmountSpent.subtract(gross).add(tx.getFee());
+                        }
+                    }
+                    Map<String, PositionAccumulator> positions = positionsByAccount.computeIfAbsent(txAccountName, ignored -> new HashMap<>());
+                    PositionAccumulator acc = positions.computeIfAbsent(tx.getSymbol(), ignored -> new PositionAccumulator());
+                    acc.apply(tx);
+                    if (tracksCash) {
+                        BigDecimal delta = tx.getType() == TransactionType.BUY
+                                ? gross.add(tx.getFee()).negate()
+                                : gross.subtract(tx.getFee());
+                        cashBalanceByAccount.merge(txAccountName, delta, BigDecimal::add);
+                    }
+                } else if (tracksCash) {
+                    BigDecimal cashDelta = switch (tx.getType()) {
+                        case CASH_DEPOSIT -> {
+                            netAmountSpent = netAmountSpent.add(gross);
+                            yield gross;
+                        }
+                        case CASH_WITHDRAWAL -> {
+                            netAmountSpent = netAmountSpent.subtract(gross);
+                            yield gross.negate();
+                        }
+                        case DIVIDEND, INTEREST -> gross;
+                        case CASH_FEE -> gross.negate();
+                        default -> BigDecimal.ZERO;
+                    };
+                    cashBalanceByAccount.merge(txAccountName, cashDelta, BigDecimal::add);
                 }
-                PositionAccumulator acc = positions.computeIfAbsent(tx.getSymbol(), ignored -> new PositionAccumulator());
-                acc.apply(tx);
                 txIndex++;
             }
 
-            List<StockPerformanceValue> stocks = new ArrayList<>();
+            Map<String, BigDecimal> stockValueBySymbol = new HashMap<>();
             BigDecimal total = BigDecimal.ZERO;
-            for (Map.Entry<String, PositionAccumulator> entry : positions.entrySet()) {
-                if (entry.getValue().netQuantity().compareTo(BigDecimal.ZERO) <= 0) {
-                    continue;
-                }
-                String symbol = entry.getKey();
-                BigDecimal close = closeOnOrBefore(day, symbol, closesBySymbol, closeCursorBySymbol, latestCloseBySymbol);
-                if (close == null) {
-                    close = entry.getValue().lastKnownPrice();
-                }
+            for (Map.Entry<String, Map<String, PositionAccumulator>> accountEntry : positionsByAccount.entrySet()) {
+                boolean tracksCash = Boolean.TRUE.equals(tracksCashByAccount.get(accountEntry.getKey()));
+                for (Map.Entry<String, PositionAccumulator> entry : accountEntry.getValue().entrySet()) {
+                    if (entry.getValue().netQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+                        continue;
+                    }
+                    String symbol = entry.getKey();
+                    BigDecimal close = closeOnOrBefore(day, symbol, closesBySymbol, closeCursorBySymbol, latestCloseBySymbol);
+                    if (close == null) {
+                        close = entry.getValue().lastKnownPrice();
+                    }
 
-                BigDecimal value = entry.getValue().netQuantity()
-                        .multiply(close)
-                        .subtract(entry.getValue().totalFees())
-                        .setScale(2, RoundingMode.HALF_UP);
-                stocks.add(new StockPerformanceValue(symbol, value));
-                total = total.add(value);
+                    BigDecimal value = entry.getValue().netQuantity()
+                            .multiply(close)
+                            .subtract(tracksCash ? BigDecimal.ZERO : entry.getValue().totalFees())
+                            .setScale(2, RoundingMode.HALF_UP);
+                    stockValueBySymbol.merge(symbol, value, BigDecimal::add);
+                    total = total.add(value);
+                }
             }
 
-            stocks.sort(Comparator.comparing(StockPerformanceValue::symbol));
+            BigDecimal cashBalance = cashBalanceByAccount.values().stream()
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .setScale(2, RoundingMode.HALF_UP);
+
+            List<StockPerformanceValue> stocks = stockValueBySymbol.entrySet().stream()
+                    .map(entry -> new StockPerformanceValue(entry.getKey(), entry.getValue().setScale(2, RoundingMode.HALF_UP)))
+                    .sorted(Comparator.comparing(StockPerformanceValue::symbol))
+                    .toList();
             points.add(new PortfolioPerformancePoint(
                     day,
-                    total.setScale(2, RoundingMode.HALF_UP),
+                    total.add(cashBalance).setScale(2, RoundingMode.HALF_UP),
                     netAmountSpent.setScale(2, RoundingMode.HALF_UP),
+                    cashBalance,
                     stocks
             ));
         }

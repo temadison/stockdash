@@ -163,10 +163,14 @@ export function PerformancePage() {
   const net = endValue - netAmountSpent;
   const totalReturn = computeReturn(netAmountSpent, endValue);
   const cagr = rows.length > 1 ? computeCagr(netAmountSpent, endValue, rows[0].date, rows[rows.length - 1].date) : null;
+  const latestRow = rows[rows.length - 1] ?? null;
+  const latestCashBalance = latestRow?.cashBalance ?? 0;
+  const hasCashSeries = useMemo(() => rows.some((row) => Math.abs(row.cashBalance) > 0.0001), [rows]);
 
   const max = useMemo(() => {
     let currentMax = 1;
     for (const row of chartRows) {
+      if (row.cashBalance > currentMax) currentMax = row.cashBalance;
       for (const stock of row.stocks) {
         if (stock.marketValue > currentMax) currentMax = stock.marketValue;
       }
@@ -175,27 +179,36 @@ export function PerformancePage() {
   }, [chartRows]);
 
   const pointsBySymbol = useMemo(() => {
-    return symbols.map((symbol) => {
+    const chartSymbols = hasCashSeries ? [...symbols, 'CASH'] : symbols;
+    return chartSymbols.map((symbol) => {
       const points = chartRows.map((row, index) => {
-        const value = row.stocks.find((stock) => stock.symbol === symbol)?.marketValue ?? 0;
+        const value = symbol === 'CASH'
+          ? Math.max(row.cashBalance, 0)
+          : row.stocks.find((stock) => stock.symbol === symbol)?.marketValue ?? 0;
         const x = chartRows.length <= 1 ? 0 : (index / (chartRows.length - 1)) * 100;
         const y = (1 - value / max) * 100;
         return `${x},${y}`;
       });
       return { symbol, polyline: points.join(' ') };
     });
-  }, [chartRows, max, symbols]);
+  }, [chartRows, hasCashSeries, max, symbols]);
+  const yAxisTicks = useMemo(() => [max, max / 2, 0], [max]);
 
   const colorBySymbol = useMemo(() => {
     const entries = symbols.map((symbol, index) => [symbol, colorForSeries(index)] as const);
+    if (hasCashSeries) {
+      entries.push(['CASH', '#f97316'] as const);
+    }
     return new Map(entries);
-  }, [symbols]);
-  const latestRow = rows[rows.length - 1] ?? null;
+  }, [hasCashSeries, symbols]);
   const allocationSlices = useMemo(() => {
     if (!latestRow || latestRow.totalValue <= 0) return [];
 
     let runningAngle = 0;
-    return [...latestRow.stocks]
+    return [
+      ...latestRow.stocks,
+      ...(latestRow.cashBalance > 0 ? [{ symbol: 'CASH', marketValue: latestRow.cashBalance }] : [])
+    ]
       .filter((stock) => stock.marketValue > 0)
       .sort((a, b) => b.marketValue - a.marketValue)
       .map((stock) => {
@@ -279,6 +292,10 @@ export function PerformancePage() {
                 {cagr == null ? 'N/A' : `${cagr >= 0 ? '+' : '-'}${percent.format(Math.abs(cagr))}`}
               </div>
             </article>
+            <article className="summary-card">
+              <div className="summary-label">Cash Balance</div>
+              <div className="summary-value">{money.format(latestCashBalance)}</div>
+            </article>
           </div>
 
           {allocationSlices.length > 0 ? (
@@ -307,16 +324,25 @@ export function PerformancePage() {
                 </div>
                 <div className="allocation-labels">
                   {allocationSlices.map((slice) => (
-                    <Link
-                      key={slice.symbol}
-                      className="allocation-label allocation-link"
-                      to={`/history?symbol=${encodeURIComponent(slice.symbol)}&startDate=${encodeURIComponent(rows[0].date)}&endDate=${encodeURIComponent(rows[rows.length - 1].date)}&account=${encodeURIComponent(account || 'TOTAL')}`}
-                    >
-                      <span className="legend-dot" style={{ background: slice.color }} />
-                      <span className="allocation-symbol">{slice.symbol}</span>
-                      <span className="allocation-weight">{percent.format(slice.weight)}</span>
-                      <span className="allocation-value">{money.format(slice.marketValue)}</span>
-                    </Link>
+                    slice.symbol === 'CASH' ? (
+                      <div key={slice.symbol} className="allocation-label">
+                        <span className="legend-dot" style={{ background: slice.color }} />
+                        <span className="allocation-symbol">{slice.symbol}</span>
+                        <span className="allocation-weight">{percent.format(slice.weight)}</span>
+                        <span className="allocation-value">{money.format(slice.marketValue)}</span>
+                      </div>
+                    ) : (
+                      <Link
+                        key={slice.symbol}
+                        className="allocation-label allocation-link"
+                        to={`/history?symbol=${encodeURIComponent(slice.symbol)}&startDate=${encodeURIComponent(rows[0].date)}&endDate=${encodeURIComponent(rows[rows.length - 1].date)}&account=${encodeURIComponent(account || 'TOTAL')}`}
+                      >
+                        <span className="legend-dot" style={{ background: slice.color }} />
+                        <span className="allocation-symbol">{slice.symbol}</span>
+                        <span className="allocation-weight">{percent.format(slice.weight)}</span>
+                        <span className="allocation-value">{money.format(slice.marketValue)}</span>
+                      </Link>
+                    )
                   ))}
                 </div>
               </div>
@@ -327,19 +353,48 @@ export function PerformancePage() {
             <p className="muted">Chart sampled to {MAX_CHART_POINTS} points from {rows.length} rows.</p>
           ) : null}
 
-          <div className="chart-wrap">
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="chart-svg">
-              {pointsBySymbol.map((series, index) => (
-                <polyline
-                  key={series.symbol}
-                  points={series.polyline}
-                  fill="none"
-                  stroke={colorBySymbol.get(series.symbol) ?? colorForSeries(index)}
-                  strokeWidth="1.2"
-                  vectorEffect="non-scaling-stroke"
-                />
-              ))}
-            </svg>
+          <div className="chart-frame">
+            <div className="chart-stage">
+              <div className="chart-body">
+                <div className="chart-y-axis" aria-hidden="true">
+                  {yAxisTicks.map((value, index) => (
+                    <span
+                      key={index}
+                      className="chart-y-tick"
+                      style={{ top: `calc(var(--chart-pad) + (var(--chart-height) * ${index} / 2))` }}
+                    >
+                      {money.format(value)}
+                    </span>
+                  ))}
+                </div>
+                <div className="chart-wrap">
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="chart-svg">
+                    <line x1="0" y1="0" x2="100" y2="0" className="chart-grid-line" vectorEffect="non-scaling-stroke" />
+                    <line x1="0" y1="50" x2="100" y2="50" className="chart-grid-line" vectorEffect="non-scaling-stroke" />
+                    <line x1="0" y1="100" x2="100" y2="100" className="chart-grid-line" vectorEffect="non-scaling-stroke" />
+                    <line x1="0" y1="0" x2="0" y2="100" className="chart-axis-line" vectorEffect="non-scaling-stroke" />
+                    <line x1="0" y1="100" x2="100" y2="100" className="chart-axis-line" vectorEffect="non-scaling-stroke" />
+                    {pointsBySymbol.map((series, index) => (
+                      <polyline
+                        key={series.symbol}
+                        points={series.polyline}
+                        fill="none"
+                        stroke={colorBySymbol.get(series.symbol) ?? colorForSeries(index)}
+                        strokeWidth="1.2"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    ))}
+                  </svg>
+                </div>
+              </div>
+              <div className="chart-x-axis" aria-hidden="true">
+                <div className="chart-x-axis-spacer" />
+                <div className="chart-x-axis-labels">
+                  <span className="chart-x-tick" style={{ left: 'calc(var(--chart-pad) + 1px)' }}>{rows[0]?.date}</span>
+                  <span className="chart-x-tick" style={{ left: 'calc(100% - var(--chart-pad) - 1px)' }}>{rows[rows.length - 1]?.date}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <table className="compact-table">
@@ -357,6 +412,7 @@ export function PerformancePage() {
                         <Link to={`/history?symbol=${encodeURIComponent(stock.symbol)}`}>{stock.symbol}</Link>{' '}
                       </span>
                     ))}
+                    {row.cashBalance > 0 ? <span>Cash </span> : null}
                   </td>
                 </tr>
               ))}

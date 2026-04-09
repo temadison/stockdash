@@ -43,20 +43,28 @@ public class PortfolioSummaryService implements PortfolioSummaryQueryService {
         List<TradeTransactionEntity> transactions = tradeTransactionRepository
                 .findByTradeDateLessThanEqualOrderByTradeDateAscIdAsc(asOfDate);
 
-        Map<String, Map<String, PositionAccumulator>> byAccount = new HashMap<>();
+        Map<String, Boolean> tracksCashByAccount = new HashMap<>();
+        for (TradeTransactionEntity transaction : transactions) {
+            if (transaction.getType().isExplicitCashTransaction()) {
+                tracksCashByAccount.put(transaction.getAccount().getName(), true);
+            }
+        }
+
+        Map<String, AccountSummaryAccumulator> byAccount = new HashMap<>();
         for (TradeTransactionEntity transaction : transactions) {
             String accountName = transaction.getAccount().getName();
-            String symbol = transaction.getSymbol();
-
-            Map<String, PositionAccumulator> bySymbol = byAccount.computeIfAbsent(accountName, ignored -> new HashMap<>());
-            PositionAccumulator accumulator = bySymbol.computeIfAbsent(symbol, ignored -> new PositionAccumulator());
-            accumulator.apply(transaction);
+            AccountSummaryAccumulator account = byAccount.computeIfAbsent(
+                    accountName,
+                    ignored -> new AccountSummaryAccumulator(Boolean.TRUE.equals(tracksCashByAccount.get(accountName)))
+            );
+            account.apply(transaction);
         }
 
         Map<String, BigDecimal> closePriceBySymbol = new HashMap<>();
         List<PortfolioSnapshot> snapshots = new ArrayList<>();
-        for (Map.Entry<String, Map<String, PositionAccumulator>> accountEntry : byAccount.entrySet()) {
-            List<PositionValue> positions = accountEntry.getValue().entrySet().stream()
+        for (Map.Entry<String, AccountSummaryAccumulator> accountEntry : byAccount.entrySet()) {
+            AccountSummaryAccumulator account = accountEntry.getValue();
+            List<PositionValue> positions = account.positions().entrySet().stream()
                     .map(entry -> {
                         PositionAccumulator acc = entry.getValue();
                         if (acc.netQuantity().compareTo(BigDecimal.ZERO) <= 0) {
@@ -76,7 +84,7 @@ public class PortfolioSummaryService implements PortfolioSummaryQueryService {
 
                         BigDecimal positionValue = acc.netQuantity()
                                 .multiply(closePrice)
-                                .subtract(acc.totalFees())
+                                .subtract(account.tracksCash() ? BigDecimal.ZERO : acc.totalFees())
                                 .setScale(2, RoundingMode.HALF_UP);
                         return new PositionValue(entry.getKey(), acc.netQuantity().longValueExact(), closePrice, positionValue);
                     })
@@ -84,17 +92,61 @@ public class PortfolioSummaryService implements PortfolioSummaryQueryService {
                     .sorted(Comparator.comparing(PositionValue::symbol))
                     .toList();
 
+            BigDecimal cashBalance = account.cashBalance().setScale(2, RoundingMode.HALF_UP);
             BigDecimal totalValue = positions.stream()
                     .map(PositionValue::marketValue)
                     .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .add(cashBalance)
                     .setScale(2, RoundingMode.HALF_UP);
 
-            snapshots.add(new PortfolioSnapshot(accountEntry.getKey(), asOfDate, totalValue, positions));
+            snapshots.add(new PortfolioSnapshot(accountEntry.getKey(), asOfDate, totalValue, cashBalance, positions));
         }
 
         return snapshots.stream()
                 .sorted(Comparator.comparing(PortfolioSnapshot::accountName))
                 .toList();
+    }
+
+    private static BigDecimal grossAmount(TradeTransactionEntity transaction) {
+        return transaction.getQuantity().multiply(transaction.getPrice());
+    }
+
+    private static final class AccountSummaryAccumulator {
+        private final boolean tracksCash;
+        private final Map<String, PositionAccumulator> positions = new HashMap<>();
+        private BigDecimal cashBalance = BigDecimal.ZERO;
+
+        private AccountSummaryAccumulator(boolean tracksCash) {
+            this.tracksCash = tracksCash;
+        }
+
+        private void apply(TradeTransactionEntity transaction) {
+            if (transaction.getType().isSecurityTrade()) {
+                PositionAccumulator accumulator = positions.computeIfAbsent(transaction.getSymbol(), ignored -> new PositionAccumulator());
+                accumulator.apply(transaction);
+            }
+
+            if (tracksCash) {
+                cashBalance = cashBalance.add(switch (transaction.getType()) {
+                    case BUY -> grossAmount(transaction).add(transaction.getFee()).negate();
+                    case SELL -> grossAmount(transaction).subtract(transaction.getFee());
+                    case CASH_DEPOSIT, DIVIDEND, INTEREST -> grossAmount(transaction);
+                    case CASH_WITHDRAWAL, CASH_FEE -> grossAmount(transaction).negate();
+                });
+            }
+        }
+
+        private boolean tracksCash() {
+            return tracksCash;
+        }
+
+        private Map<String, PositionAccumulator> positions() {
+            return positions;
+        }
+
+        private BigDecimal cashBalance() {
+            return tracksCash ? cashBalance : BigDecimal.ZERO;
+        }
     }
 
 }

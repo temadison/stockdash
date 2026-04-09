@@ -53,6 +53,7 @@ public class PortfolioApiMapper {
                 source.accountName(),
                 source.asOfDate(),
                 source.totalValue(),
+                source.cashBalance(),
                 source.positions().stream().map(this::toDto).toList()
         );
     }
@@ -70,6 +71,7 @@ public class PortfolioApiMapper {
                 source.date(),
                 source.totalValue(),
                 source.netAmountSpent(),
+                source.cashBalance(),
                 source.stocks().stream().map(this::toDto).toList()
         );
     }

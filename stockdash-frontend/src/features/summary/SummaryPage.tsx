@@ -74,6 +74,7 @@ export function SummaryPage() {
               </h2>
               <strong>{money.format(snapshot.totalValue)}</strong>
             </div>
+            <p className="muted">Cash balance: {money.format(snapshot.cashBalance)}</p>
             <p className="muted">
               Account link opens performance filtered to this account.
             </p>

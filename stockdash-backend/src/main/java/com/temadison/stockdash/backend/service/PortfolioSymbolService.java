@@ -1,5 +1,6 @@
 package com.temadison.stockdash.backend.service;
 
+import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,9 @@ public class PortfolioSymbolService implements PortfolioSymbolQueryService {
     @Override
     @Transactional(readOnly = true)
     public List<String> symbols() {
-        return tradeTransactionRepository.findDistinctSymbolsOrderBySymbolAsc();
+        return tradeTransactionRepository.findDistinctSymbolsOrderBySymbolAsc(List.of(
+                TransactionType.BUY,
+                TransactionType.SELL
+        ));
     }
 }

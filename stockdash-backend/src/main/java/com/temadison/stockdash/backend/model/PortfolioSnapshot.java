@@ -8,6 +8,7 @@ public record PortfolioSnapshot(
         String accountName,
         LocalDate asOfDate,
         BigDecimal totalValue,
+        BigDecimal cashBalance,
         List<PositionValue> positions
 ) {
 }

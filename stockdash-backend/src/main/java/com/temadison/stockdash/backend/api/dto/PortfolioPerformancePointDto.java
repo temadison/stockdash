@@ -8,6 +8,7 @@ public record PortfolioPerformancePointDto(
         LocalDate date,
         BigDecimal totalValue,
         BigDecimal netAmountSpent,
+        BigDecimal cashBalance,
         List<StockPerformanceValueDto> stocks
 ) {
 }
