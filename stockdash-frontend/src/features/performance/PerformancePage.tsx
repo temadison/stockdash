@@ -45,6 +45,13 @@ function describePieSlice(centerX: number, centerY: number, radius: number, star
   ].join(' ');
 }
 
+function buildAreaPath(points: Array<{ x: number; lowerY: number; upperY: number }>) {
+  if (points.length === 0) return '';
+  const upper = points.map((point) => `${point.x},${point.upperY}`).join(' ');
+  const lower = points.slice().reverse().map((point) => `${point.x},${point.lowerY}`).join(' ');
+  return `M ${points[0].x},${points[0].lowerY} L ${upper} L ${lower} Z`;
+}
+
 function parseIsoDate(isoDate: string): number {
   return Date.parse(`${isoDate}T00:00:00Z`);
 }
@@ -167,29 +174,34 @@ export function PerformancePage() {
   const latestCashBalance = latestRow?.cashBalance ?? 0;
   const hasCashSeries = useMemo(() => rows.some((row) => Math.abs(row.cashBalance) > 0.0001), [rows]);
 
-  const max = useMemo(() => {
-    let currentMax = 1;
-    for (const row of chartRows) {
-      if (row.cashBalance > currentMax) currentMax = row.cashBalance;
-      for (const stock of row.stocks) {
-        if (stock.marketValue > currentMax) currentMax = stock.marketValue;
-      }
-    }
-    return currentMax;
-  }, [chartRows]);
+  const max = useMemo(
+    () => Math.max(1, ...chartRows.map((row) => Math.max(row.totalValue, 0))),
+    [chartRows]
+  );
 
-  const pointsBySymbol = useMemo(() => {
+  const areaSeries = useMemo(() => {
     const chartSymbols = hasCashSeries ? [...symbols, 'CASH'] : symbols;
+    const cumulativeTotals = chartRows.map(() => 0);
     return chartSymbols.map((symbol) => {
       const points = chartRows.map((row, index) => {
         const value = symbol === 'CASH'
           ? Math.max(row.cashBalance, 0)
           : row.stocks.find((stock) => stock.symbol === symbol)?.marketValue ?? 0;
+        const lowerTotal = cumulativeTotals[index];
+        const upperTotal = lowerTotal + value;
+        cumulativeTotals[index] = upperTotal;
         const x = chartRows.length <= 1 ? 0 : (index / (chartRows.length - 1)) * 100;
-        const y = (1 - value / max) * 100;
-        return `${x},${y}`;
+        return {
+          x,
+          lowerY: 100 - (lowerTotal / max) * 100,
+          upperY: 100 - (upperTotal / max) * 100
+        };
       });
-      return { symbol, polyline: points.join(' ') };
+      return {
+        symbol,
+        areaPath: buildAreaPath(points),
+        topLine: points.map((point) => `${point.x},${point.upperY}`).join(' ')
+      };
     });
   }, [chartRows, hasCashSeries, max, symbols]);
   const yAxisTicks = useMemo(() => [max, max / 2, 0], [max]);
@@ -374,15 +386,21 @@ export function PerformancePage() {
                     <line x1="0" y1="100" x2="100" y2="100" className="chart-grid-line" vectorEffect="non-scaling-stroke" />
                     <line x1="0" y1="0" x2="0" y2="100" className="chart-axis-line" vectorEffect="non-scaling-stroke" />
                     <line x1="0" y1="100" x2="100" y2="100" className="chart-axis-line" vectorEffect="non-scaling-stroke" />
-                    {pointsBySymbol.map((series, index) => (
-                      <polyline
-                        key={series.symbol}
-                        points={series.polyline}
-                        fill="none"
-                        stroke={colorBySymbol.get(series.symbol) ?? colorForSeries(index)}
-                        strokeWidth="1.2"
-                        vectorEffect="non-scaling-stroke"
-                      />
+                    {areaSeries.map((series, index) => (
+                      <g key={series.symbol}>
+                        <path
+                          d={series.areaPath}
+                          fill={colorBySymbol.get(series.symbol) ?? colorForSeries(index)}
+                          fillOpacity={series.symbol === 'CASH' ? 0.82 : 0.68}
+                        />
+                        <polyline
+                          points={series.topLine}
+                          fill="none"
+                          stroke={colorBySymbol.get(series.symbol) ?? colorForSeries(index)}
+                          strokeWidth={series.symbol === 'CASH' ? '1.4' : '0.9'}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      </g>
                     ))}
                   </svg>
                 </div>
