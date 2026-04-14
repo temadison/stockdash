@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { DailyClosePricePointDto } from '../../shared/types/api';
-import { getHistory, getPerformance, getSymbols } from '../../shared/api/portfolioApi';
-import { money, percent } from '../../shared/utils/format';
+import { getDailySummary, getHistory } from '../../shared/api/portfolioApi';
+import { money, percent, todayIso } from '../../shared/utils/format';
 import { computeCagr, computeReturn } from '../../shared/utils/analytics';
 import { PageShell } from '../../shared/ui/PageShell';
 
@@ -17,10 +17,18 @@ export function HistoryPage() {
   const [symbol, setSymbol] = useState(querySymbol.toUpperCase());
   const [startDate, setStartDate] = useState(queryStartDate);
   const [endDate, setEndDate] = useState(queryEndDate);
+  const [symbols, setSymbols] = useState<string[]>([]);
   const [rows, setRows] = useState<DailyClosePricePointDto[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  const symbolOptions = useMemo(() => {
+    if (!symbol) {
+      return symbols;
+    }
+    return symbols.includes(symbol) ? symbols : [symbol, ...symbols];
+  }, [symbol, symbols]);
 
   const load = async (targetSymbol = symbol, targetStartDate = startDate, targetEndDate = endDate) => {
     try {
@@ -51,28 +59,31 @@ export function HistoryPage() {
 
       if (nextSymbol) {
         setSymbol(nextSymbol);
-        await load(nextSymbol, queryStartDate, queryEndDate);
-        return;
       }
 
       try {
-        let fallback = '';
-        if (queryAccount) {
-          const performance = await getPerformance(queryAccount, queryStartDate || undefined, queryEndDate || undefined);
-          const accountSymbols = Array.from(new Set(performance.flatMap((point) => point.stocks.map((stock) => stock.symbol)))).sort();
-          fallback = accountSymbols[0]?.toUpperCase() ?? '';
-        }
-        if (!fallback) {
-          const symbols = await getSymbols();
-          fallback = symbols[0]?.toUpperCase() ?? '';
-        }
+        const snapshots = await getDailySummary(todayIso());
+        const filteredSnapshots = queryAccount
+          ? snapshots.filter((snapshot) => snapshot.accountName.toLowerCase() === queryAccount.toLowerCase())
+          : snapshots;
+        const currentSymbols = Array.from(
+          new Set(
+            filteredSnapshots.flatMap((snapshot) => snapshot.positions.map((position) => position.symbol.toUpperCase()))
+          )
+        ).sort();
+        setSymbols(currentSymbols);
+
+        const fallback = nextSymbol || currentSymbols[0] || '';
         setSymbol(fallback);
+
         if (fallback) {
           await load(fallback, queryStartDate, queryEndDate);
         } else {
           setRows([]);
         }
       } catch (e) {
+        setSymbols([]);
+        setRows([]);
         setError((e as Error).message);
       }
     };
@@ -140,10 +151,22 @@ export function HistoryPage() {
       subtitle="Raw close-price list from /api/portfolio/prices/history"
       actions={
         <div className="inline">
-          <input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="Symbol" />
+          <select
+            className="history-symbol-select"
+            value={symbol}
+            onChange={(e) => setSymbol(e.target.value)}
+            disabled={symbolOptions.length === 0}
+          >
+            {symbolOptions.length === 0 ? <option value="">No current holdings</option> : null}
+            {symbolOptions.map((option) => (
+              <option key={option} value={option}>
+                {option === symbol && !symbols.includes(option) ? `${option} (not currently held)` : option}
+              </option>
+            ))}
+          </select>
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          <button onClick={() => void load()}>Load</button>
+          <button onClick={() => void load()} disabled={!symbol}>Load</button>
         </div>
       }
     >

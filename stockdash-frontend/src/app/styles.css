@@ -168,6 +168,10 @@ select {
   font-size: 1rem;
 }
 
+.history-symbol-select {
+  height: 38px;
+}
+
 button {
   background: linear-gradient(120deg, #0f766e, #0b5f59);
   color: white;
