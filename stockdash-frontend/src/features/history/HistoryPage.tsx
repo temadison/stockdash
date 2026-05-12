@@ -7,12 +7,16 @@ import { money, percent, todayIso } from '../../shared/utils/format';
 import { computeCagr, computeReturn } from '../../shared/utils/analytics';
 import { PageShell } from '../../shared/ui/PageShell';
 
+function normalizeAccount(accountName: string) {
+  return accountName.trim().toUpperCase() === 'TOTAL' ? '' : accountName;
+}
+
 export function HistoryPage() {
   const [params] = useSearchParams();
   const querySymbol = useMemo(() => params.get('symbol') ?? '', [params]);
   const queryStartDate = useMemo(() => params.get('startDate') ?? '', [params]);
   const queryEndDate = useMemo(() => params.get('endDate') ?? '', [params]);
-  const queryAccount = useMemo(() => params.get('account') ?? '', [params]);
+  const queryAccount = useMemo(() => normalizeAccount(params.get('account') ?? ''), [params]);
 
   const [symbol, setSymbol] = useState(querySymbol.toUpperCase());
   const [startDate, setStartDate] = useState(queryStartDate);

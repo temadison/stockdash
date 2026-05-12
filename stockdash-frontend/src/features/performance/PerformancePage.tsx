@@ -254,7 +254,7 @@ export function PerformancePage() {
       subtitle="Raw series view from /api/portfolio/performance"
       actions={
         <div className="inline">
-          <select value={account} onChange={(e) => setAccount(e.target.value)}>
+          <select className="performance-account-select" value={account} onChange={(e) => setAccount(e.target.value)}>
             <option value="">All Accounts</option>
             {accounts.map((accountName) => (
               <option key={accountName} value={accountName}>{accountName}</option>
@@ -347,7 +347,7 @@ export function PerformancePage() {
                       <Link
                         key={slice.symbol}
                         className="allocation-label allocation-link"
-                        to={`/history?symbol=${encodeURIComponent(slice.symbol)}&startDate=${encodeURIComponent(rows[0].date)}&endDate=${encodeURIComponent(rows[rows.length - 1].date)}&account=${encodeURIComponent(account || 'TOTAL')}`}
+                        to={`/history?symbol=${encodeURIComponent(slice.symbol)}&startDate=${encodeURIComponent(rows[0].date)}&endDate=${encodeURIComponent(rows[rows.length - 1].date)}${account ? `&account=${encodeURIComponent(account)}` : ''}`}
                       >
                         <span className="legend-dot" style={{ background: slice.color }} />
                         <span className="allocation-symbol">{slice.symbol}</span>

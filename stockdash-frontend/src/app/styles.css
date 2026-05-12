@@ -172,6 +172,10 @@ select {
   height: 38px;
 }
 
+.performance-account-select {
+  height: 38px;
+}
+
 button {
   background: linear-gradient(120deg, #0f766e, #0b5f59);
   color: white;
