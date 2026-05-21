@@ -162,6 +162,12 @@ Configure pricing API key:
 export STOCKDASH_PRICING_ALPHA_VANTAGE_API_KEY=your_api_key_here
 ```
 
+The default Alpha Vantage daily-series request uses `outputsize=compact`, which returns the latest 100 daily price points and works with a free key. If you have a premium key and need a full historical backfill, set:
+
+```bash
+export STOCKDASH_PRICING_ALPHA_VANTAGE_OUTPUT_SIZE=full
+```
+
 Security note:
 
 - Never commit real API keys or DB passwords to the repo.

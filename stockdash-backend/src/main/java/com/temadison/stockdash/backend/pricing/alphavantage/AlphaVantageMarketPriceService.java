@@ -72,7 +72,7 @@ public class AlphaVantageMarketPriceService implements MarketPriceService {
         String requestUrl = baseUrl
                 + "?function=TIME_SERIES_DAILY"
                 + "&symbol=" + encodedSymbol
-                + "&outputsize=compact"
+                + "&outputsize=" + pricingProperties.outputSizeOrDefault()
                 + "&apikey=" + encodedApiKey;
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -125,9 +125,14 @@ public class AlphaVantageMarketPriceService implements MarketPriceService {
             }
             if (root.has("Information")) {
                 String message = root.path("Information").asText();
-                requestLimiter.recordRateLimitMessage(message);
-                log.warn("Price API returned info for symbol {}: {}; falling back to last known trade price.",
-                        symbol, message);
+                if (requestLimiter.isRateLimitMessage(message)) {
+                    requestLimiter.recordRateLimitMessage(message);
+                    log.warn("Price API rate limit reached for symbol {}: {}; falling back to last known trade price.",
+                            symbol, message);
+                } else {
+                    log.warn("Price API returned informational error for symbol {}: {}; falling back to last known trade price.",
+                            symbol, message);
+                }
                 return Optional.empty();
             }
 

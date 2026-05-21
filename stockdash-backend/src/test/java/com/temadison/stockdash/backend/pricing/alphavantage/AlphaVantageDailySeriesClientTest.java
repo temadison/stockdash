@@ -50,7 +50,7 @@ class AlphaVantageDailySeriesClientTest {
                 .thenReturn(successResponse);
 
         AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
-                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 requestLimiter,
                 httpClient,
                 retry(3),
@@ -80,7 +80,7 @@ class AlphaVantageDailySeriesClientTest {
                 .thenReturn(failureResponse);
 
         AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
-                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 requestLimiter,
                 httpClient,
                 retry(1),
@@ -111,7 +111,7 @@ class AlphaVantageDailySeriesClientTest {
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
 
         AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
-                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 requestLimiter,
                 httpClient,
                 retry(1),
@@ -140,7 +140,7 @@ class AlphaVantageDailySeriesClientTest {
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
 
         AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
-                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 requestLimiter,
                 httpClient,
                 retry(1),
@@ -151,6 +151,64 @@ class AlphaVantageDailySeriesClientTest {
         SeriesFetchResult result = client.fetchDailyCloseSeries("AAPL");
 
         assertThat(result.status()).isEqualTo(SeriesFetchStatus.RATE_LIMITED);
+    }
+
+    @Test
+    void returnsRateLimitedForRateLimitInformationPayload() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        AlphaVantageRequestLimiter requestLimiter = mock(AlphaVantageRequestLimiter.class);
+        doReturn(false).when(requestLimiter).isDailyLimitReached();
+        doReturn(true).when(requestLimiter).isRateLimitMessage("standard API call frequency is 5 calls per minute and 25 calls per day");
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> response = (HttpResponse<String>) mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+                {"Information":"standard API call frequency is 5 calls per minute and 25 calls per day"}
+                """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                requestLimiter,
+                httpClient,
+                retry(1),
+                circuitBreaker(50.0f, 10, 5),
+                timeLimiter(1)
+        );
+
+        SeriesFetchResult result = client.fetchDailyCloseSeries("AAPL");
+
+        assertThat(result.status()).isEqualTo(SeriesFetchStatus.RATE_LIMITED);
+    }
+
+    @Test
+    void returnsApiErrorForNonRateLimitInformationPayload() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        AlphaVantageRequestLimiter requestLimiter = mock(AlphaVantageRequestLimiter.class);
+        doReturn(false).when(requestLimiter).isDailyLimitReached();
+        doReturn(false).when(requestLimiter).isRateLimitMessage("This endpoint is unavailable.");
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> response = (HttpResponse<String>) mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+                {"Information":"This endpoint is unavailable."}
+                """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                requestLimiter,
+                httpClient,
+                retry(1),
+                circuitBreaker(50.0f, 10, 5),
+                timeLimiter(1)
+        );
+
+        SeriesFetchResult result = client.fetchDailyCloseSeries("AAPL");
+
+        assertThat(result.status()).isEqualTo(SeriesFetchStatus.API_ERROR);
     }
 
     @Test
@@ -166,7 +224,7 @@ class AlphaVantageDailySeriesClientTest {
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
 
         AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
-                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 requestLimiter,
                 httpClient,
                 retry(1),
@@ -206,7 +264,7 @@ class AlphaVantageDailySeriesClientTest {
                 .thenReturn(successResponse);
 
         AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
-                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 requestLimiter,
                 httpClient,
                 retry(2),

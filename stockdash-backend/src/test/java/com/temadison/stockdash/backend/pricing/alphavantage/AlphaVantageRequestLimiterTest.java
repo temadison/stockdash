@@ -30,6 +30,16 @@ class AlphaVantageRequestLimiterTest {
     }
 
     @Test
+    void classifiesRateLimitMessagesWithoutTreatingEveryInfoMessageAsLimited() {
+        AlphaVantageRequestLimiter limiter = new AlphaVantageRequestLimiter();
+
+        assertThat(limiter.isRateLimitMessage("standard API call frequency is 5 calls per minute and 25 calls per day"))
+                .isTrue();
+        assertThat(limiter.isRateLimitMessage("This endpoint is unavailable."))
+                .isFalse();
+    }
+
+    @Test
     void clearsStaleDailyLimitMarkerOnNextDay() throws Exception {
         AlphaVantageRequestLimiter limiter = new AlphaVantageRequestLimiter();
         setDateField(limiter, "dailyLimitReachedOn", LocalDate.now().minusDays(1));

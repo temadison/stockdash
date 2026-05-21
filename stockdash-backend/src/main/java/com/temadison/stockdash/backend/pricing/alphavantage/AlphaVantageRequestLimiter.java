@@ -27,13 +27,30 @@ public class AlphaVantageRequestLimiter {
     }
 
     public synchronized void recordRateLimitMessage(String message) {
-        if (message == null || message.isBlank()) {
-            return;
-        }
-        String normalized = message.toLowerCase();
-        if (normalized.contains(DAILY_LIMIT_HINT_A) || normalized.contains(DAILY_LIMIT_HINT_B)) {
+        if (isDailyLimitMessage(message)) {
             dailyLimitReachedOn = LocalDate.now();
         }
+    }
+
+    public boolean isRateLimitMessage(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String normalized = message.toLowerCase();
+        return normalized.contains("rate limit")
+                || normalized.contains("frequency")
+                || normalized.contains("requests per day")
+                || normalized.contains("requests/min")
+                || normalized.contains("calls per day")
+                || normalized.contains("calls per minute");
+    }
+
+    public boolean isDailyLimitMessage(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String normalized = message.toLowerCase();
+        return normalized.contains(DAILY_LIMIT_HINT_A) || normalized.contains(DAILY_LIMIT_HINT_B);
     }
 
     public synchronized void awaitTurn() throws InterruptedException {

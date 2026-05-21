@@ -27,7 +27,7 @@ class AlphaVantageMarketPriceServiceTest {
         HttpClient httpClient = mock(HttpClient.class);
         AlphaVantageRequestLimiter requestLimiter = mock(AlphaVantageRequestLimiter.class);
         AlphaVantageMarketPriceService service = new AlphaVantageMarketPriceService(
-                new PricingProperties("", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                new PricingProperties("", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 requestLimiter,
                 httpClient
         );
@@ -50,7 +50,7 @@ class AlphaVantageMarketPriceServiceTest {
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
 
         AlphaVantageMarketPriceService service = new AlphaVantageMarketPriceService(
-                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 requestLimiter,
                 httpClient
         );
@@ -84,7 +84,7 @@ class AlphaVantageMarketPriceServiceTest {
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
 
         AlphaVantageMarketPriceService service = new AlphaVantageMarketPriceService(
-                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 requestLimiter,
                 httpClient
         );
@@ -109,7 +109,7 @@ class AlphaVantageMarketPriceServiceTest {
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
 
         AlphaVantageMarketPriceService service = new AlphaVantageMarketPriceService(
-                new PricingProperties("test-key", "https://example.com/query", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 requestLimiter,
                 httpClient
         );

@@ -8,9 +8,14 @@ import java.time.Duration;
 public record PricingProperties(
         String alphaVantageApiKey,
         String alphaVantageBaseUrl,
+        String alphaVantageOutputSize,
         Duration alphaVantageConnectTimeout,
         Duration alphaVantageRequestTimeout
 ) {
+    public String outputSizeOrDefault() {
+        return "full".equalsIgnoreCase(alphaVantageOutputSize) ? "full" : "compact";
+    }
+
     public Duration connectTimeoutOrDefault() {
         return alphaVantageConnectTimeout == null ? Duration.ofSeconds(10) : alphaVantageConnectTimeout;
     }

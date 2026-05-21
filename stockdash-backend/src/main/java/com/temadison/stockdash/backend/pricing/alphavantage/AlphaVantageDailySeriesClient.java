@@ -106,7 +106,7 @@ public class AlphaVantageDailySeriesClient implements DailySeriesClient {
         String requestUrl = baseUrl
                 + "?function=TIME_SERIES_DAILY"
                 + "&symbol=" + encodedSymbol
-                + "&outputsize=compact"
+                + "&outputsize=" + pricingProperties.outputSizeOrDefault()
                 + "&apikey=" + encodedApiKey;
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -243,9 +243,13 @@ public class AlphaVantageDailySeriesClient implements DailySeriesClient {
             }
             if (root.has("Information")) {
                 String message = root.path("Information").asText();
-                requestLimiter.recordRateLimitMessage(message);
-                log.warn("Price series API returned info for symbol {}: {}.", symbol, message);
-                return new SeriesResponse(Map.of(), !requestLimiter.isDailyLimitReached(), SeriesFetchStatus.RATE_LIMITED);
+                if (requestLimiter.isRateLimitMessage(message)) {
+                    requestLimiter.recordRateLimitMessage(message);
+                    log.warn("Price series API rate limit reached for symbol {}: {}.", symbol, message);
+                    return new SeriesResponse(Map.of(), !requestLimiter.isDailyLimitReached(), SeriesFetchStatus.RATE_LIMITED);
+                }
+                log.warn("Price series API returned informational error for symbol {}: {}.", symbol, message);
+                return new SeriesResponse(Map.of(), false, SeriesFetchStatus.API_ERROR);
             }
 
             JsonNode dailySeries = root.path(TIME_SERIES_KEY);

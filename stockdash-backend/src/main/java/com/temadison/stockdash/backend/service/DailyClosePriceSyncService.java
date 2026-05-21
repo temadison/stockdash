@@ -94,17 +94,21 @@ public class DailyClosePriceSyncService implements PriceSyncService {
                     statusBySymbol.put(symbol, mapFetchStatus(fetchResult.status()));
                     continue;
                 }
-                LocalDate latestSeriesDate = dailySeries.keySet().stream().max(LocalDate::compareTo).orElse(null);
-
-                Set<LocalDate> existingDates = dailyClosePriceRepository.findBySymbolAndPriceDateGreaterThanEqual(symbol, firstBuyDate)
+                Map<LocalDate, DailyClosePriceEntity> existingByDate = dailyClosePriceRepository.findBySymbolAndPriceDateGreaterThanEqual(symbol, firstBuyDate)
                         .stream()
-                        .map(DailyClosePriceEntity::getPriceDate)
-                        .collect(LinkedHashSet::new, Set::add, Set::addAll);
+                        .collect(LinkedHashMap::new, (map, entity) -> map.put(entity.getPriceDate(), entity), Map::putAll);
 
                 List<DailyClosePriceEntity> toSave = new ArrayList<>();
                 for (Map.Entry<LocalDate, BigDecimal> entry : dailySeries.entrySet()) {
                     LocalDate priceDate = entry.getKey();
-                    if (!priceDate.isAfter(resumeFromDate) || existingDates.contains(priceDate)) {
+                    if (priceDate.isBefore(firstBuyDate)) {
+                        continue;
+                    }
+                    DailyClosePriceEntity existing = existingByDate.get(priceDate);
+                    if (existing != null) {
+                        continue;
+                    }
+                    if (!priceDate.isAfter(resumeFromDate)) {
                         continue;
                     }
                     DailyClosePriceEntity entity = new DailyClosePriceEntity();
@@ -115,10 +119,10 @@ public class DailyClosePriceSyncService implements PriceSyncService {
                 }
 
                 int inserted = saveIgnoringDuplicates(symbol, toSave);
-                int refreshedLatest = refreshLatestClose(symbol, latestSeriesDate, dailySeries);
-                int changedRows = inserted + refreshedLatest;
+                int refreshedExisting = refreshExistingCloses(symbol, existingByDate, dailySeries);
+                int changedRows = inserted + refreshedExisting;
                 storedBySymbol.put(symbol, changedRows);
-                statusBySymbol.put(symbol, statusForPersistResult(inserted, refreshedLatest, usedLocalFallback));
+                statusBySymbol.put(symbol, statusForPersistResult(inserted, refreshedExisting, usedLocalFallback));
                 pricesStored += changedRows;
             }
         }
@@ -187,15 +191,15 @@ public class DailyClosePriceSyncService implements PriceSyncService {
                 || status == SeriesFetchStatus.CIRCUIT_OPEN;
     }
 
-    private String statusForPersistResult(int inserted, int refreshedLatest, boolean usedLocalFallback) {
-        if (inserted > 0 && refreshedLatest > 0) {
-            return usedLocalFallback ? "local_fallback_stored_and_updated_latest" : "stored_and_updated_latest";
+    private String statusForPersistResult(int inserted, int refreshedExisting, boolean usedLocalFallback) {
+        if (inserted > 0 && refreshedExisting > 0) {
+            return usedLocalFallback ? "local_fallback_stored_and_updated_existing" : "stored_and_updated_existing";
         }
         if (inserted > 0) {
             return usedLocalFallback ? "local_fallback_stored" : "stored";
         }
-        if (refreshedLatest > 0) {
-            return "updated_latest";
+        if (refreshedExisting > 0) {
+            return "updated_existing";
         }
         if (usedLocalFallback) {
             return "local_fallback_no_new_rows";
@@ -227,24 +231,28 @@ public class DailyClosePriceSyncService implements PriceSyncService {
         }
     }
 
-    private int refreshLatestClose(String symbol, LocalDate latestSeriesDate, Map<LocalDate, BigDecimal> dailySeries) {
-        if (latestSeriesDate == null) {
-            return 0;
+    private int refreshExistingCloses(
+            String symbol,
+            Map<LocalDate, DailyClosePriceEntity> existingByDate,
+            Map<LocalDate, BigDecimal> dailySeries
+    ) {
+        int refreshed = 0;
+        for (Map.Entry<LocalDate, DailyClosePriceEntity> entry : existingByDate.entrySet()) {
+            BigDecimal latestSeriesClose = dailySeries.get(entry.getKey());
+            if (latestSeriesClose == null) {
+                continue;
+            }
+            DailyClosePriceEntity existing = entry.getValue();
+            if (existing.getClosePrice().compareTo(latestSeriesClose) == 0) {
+                continue;
+            }
+            existing.setClosePrice(latestSeriesClose);
+            dailyClosePriceRepository.save(existing);
+            refreshed++;
         }
-        BigDecimal latestSeriesClose = dailySeries.get(latestSeriesDate);
-        if (latestSeriesClose == null) {
-            return 0;
+        if (refreshed > 0) {
+            log.debug("Refreshed {} existing close prices for {}.", refreshed, symbol);
         }
-        return dailyClosePriceRepository.findBySymbolAndPriceDate(symbol, latestSeriesDate)
-                .map(existing -> {
-                    if (existing.getClosePrice().compareTo(latestSeriesClose) == 0) {
-                        return 0;
-                    }
-                    existing.setClosePrice(latestSeriesClose);
-                    dailyClosePriceRepository.save(existing);
-                    log.debug("Refreshed close price for {} on {}.", symbol, latestSeriesDate);
-                    return 1;
-                })
-                .orElse(0);
+        return refreshed;
     }
 }
