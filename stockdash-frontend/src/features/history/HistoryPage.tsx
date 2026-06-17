@@ -152,7 +152,7 @@ export function HistoryPage() {
   return (
     <PageShell
       title="Price History"
-      subtitle="Raw close-price list from /api/portfolio/prices/history"
+      subtitle="Split-adjusted close-price history from /api/portfolio/prices/history"
       actions={
         <div className="inline">
           <select

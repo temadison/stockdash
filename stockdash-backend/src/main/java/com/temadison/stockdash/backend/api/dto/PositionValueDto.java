@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 
 public record PositionValueDto(
         String symbol,
-        long quantity,
+        BigDecimal quantity,
         BigDecimal currentPrice,
         BigDecimal marketValue
 ) {

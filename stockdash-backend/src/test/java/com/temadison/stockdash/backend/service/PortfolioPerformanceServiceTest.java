@@ -1,10 +1,12 @@
 package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.domain.AccountEntity;
+import com.temadison.stockdash.backend.domain.StockSplitEntity;
 import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
 import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.model.PortfolioPerformancePoint;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
+import com.temadison.stockdash.backend.repository.StockSplitRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,11 +32,15 @@ class PortfolioPerformanceServiceTest {
     @Mock
     private DailyClosePriceRepository dailyClosePriceRepository;
 
+    @Mock
+    private StockSplitRepository stockSplitRepository;
+
     @Test
     void throwsWhenStartDateIsAfterEndDate() {
         PortfolioPerformanceService service = new PortfolioPerformanceService(
                 tradeTransactionRepository,
-                dailyClosePriceRepository
+                dailyClosePriceRepository,
+                stockSplitRepository
         );
         when(tradeTransactionRepository.findByTradeDateLessThanEqualAndAccount_NameIgnoreCaseOrderByTradeDateAscIdAsc(any(), anyString()))
                 .thenReturn(List.of(trade("IRA", "AAPL", TransactionType.BUY, "10", "100.00", "1.00", LocalDate.of(2026, 1, 1))));
@@ -48,7 +54,8 @@ class PortfolioPerformanceServiceTest {
     void filtersByAccountAndFallsBackToLastKnownTradePrice() {
         PortfolioPerformanceService service = new PortfolioPerformanceService(
                 tradeTransactionRepository,
-                dailyClosePriceRepository
+                dailyClosePriceRepository,
+                stockSplitRepository
         );
 
         TradeTransactionEntity iraBuy = trade("IRA", "AAPL", TransactionType.BUY, "10", "100.00", "1.00", LocalDate.of(2026, 1, 1));
@@ -77,7 +84,8 @@ class PortfolioPerformanceServiceTest {
     void includesCashBalanceForCashAwareAccounts() {
         PortfolioPerformanceService service = new PortfolioPerformanceService(
                 tradeTransactionRepository,
-                dailyClosePriceRepository
+                dailyClosePriceRepository,
+                stockSplitRepository
         );
 
         TradeTransactionEntity deposit = trade("IRA", "CASH", TransactionType.CASH_DEPOSIT, "1000", "1.00", "0.00", LocalDate.of(2026, 1, 1));
@@ -103,6 +111,29 @@ class PortfolioPerformanceServiceTest {
         assertThat(points.get(2).netAmountSpent()).isEqualByComparingTo("1000.00");
     }
 
+    @Test
+    void adjustsExistingPositionsForStockSplits() {
+        PortfolioPerformanceService service = new PortfolioPerformanceService(
+                tradeTransactionRepository,
+                dailyClosePriceRepository,
+                stockSplitRepository
+        );
+
+        TradeTransactionEntity buy = trade("IRA", "KLAC", TransactionType.BUY, "2", "900.00", "1.00", LocalDate.of(2026, 1, 1));
+
+        when(tradeTransactionRepository.findByTradeDateLessThanEqualAndAccount_NameIgnoreCaseOrderByTradeDateAscIdAsc(any(), anyString()))
+                .thenReturn(List.of(buy));
+        when(dailyClosePriceRepository.findBySymbolAndPriceDateLessThanEqualOrderByPriceDateDesc(anyString(), any()))
+                .thenReturn(List.of());
+        when(stockSplitRepository.findBySymbolAndSplitDateLessThanEqualOrderBySplitDateAsc("KLAC", LocalDate.of(2026, 2, 2)))
+                .thenReturn(List.of(split("KLAC", LocalDate.of(2026, 2, 1), "10.000000")));
+
+        List<PortfolioPerformancePoint> points = service.performance("IRA", LocalDate.of(2026, 2, 2), LocalDate.of(2026, 2, 2));
+
+        assertThat(points).hasSize(1);
+        assertThat(points.get(0).totalValue()).isEqualByComparingTo("1799.00");
+    }
+
     private TradeTransactionEntity trade(
             String accountName,
             String symbol,
@@ -124,5 +155,13 @@ class PortfolioPerformanceServiceTest {
         trade.setFee(new BigDecimal(fee));
         trade.setTradeDate(tradeDate);
         return trade;
+    }
+
+    private StockSplitEntity split(String symbol, LocalDate splitDate, String splitRatio) {
+        StockSplitEntity split = new StockSplitEntity();
+        split.setSymbol(symbol);
+        split.setSplitDate(splitDate);
+        split.setSplitRatio(new BigDecimal(splitRatio));
+        return split;
     }
 }

@@ -1,11 +1,13 @@
 package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.domain.DailyClosePriceEntity;
+import com.temadison.stockdash.backend.domain.StockSplitEntity;
 import com.temadison.stockdash.backend.model.PortfolioSnapshot;
 import com.temadison.stockdash.backend.model.PositionValue;
 import com.temadison.stockdash.backend.pricing.MarketPriceService;
 import com.temadison.stockdash.backend.repository.AccountRepository;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
+import com.temadison.stockdash.backend.repository.StockSplitRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,11 +44,15 @@ class PortfolioSummaryServiceTest {
     @Autowired
     private DailyClosePriceRepository dailyClosePriceRepository;
 
+    @Autowired
+    private StockSplitRepository stockSplitRepository;
+
     @MockitoBean
     private MarketPriceService marketPriceService;
 
     @BeforeEach
     void setUp() {
+        stockSplitRepository.deleteAll();
         dailyClosePriceRepository.deleteAll();
         tradeTransactionRepository.deleteAll();
         accountRepository.deleteAll();
@@ -78,7 +84,7 @@ class PortfolioSummaryServiceTest {
         assertThat(snapshotBefore.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
         assertThat(snapshotBefore.positions()).containsExactly(new PositionValue(
                 "AAPL",
-                15L,
+                new BigDecimal("15"),
                 new BigDecimal("120.000000"),
                 new BigDecimal("1798.00")
         ));
@@ -90,8 +96,8 @@ class PortfolioSummaryServiceTest {
         assertThat(snapshotAfter.totalValue()).isEqualByComparingTo(new BigDecimal("1955.00"));
         assertThat(snapshotAfter.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
         assertThat(snapshotAfter.positions()).containsExactly(
-                new PositionValue("AAPL", 12L, new BigDecimal("130.000000"), new BigDecimal("1557.00")),
-                new PositionValue("MSFT", 2L, new BigDecimal("200.000000"), new BigDecimal("398.00"))
+                new PositionValue("AAPL", new BigDecimal("12"), new BigDecimal("130.000000"), new BigDecimal("1557.00")),
+                new PositionValue("MSFT", new BigDecimal("2"), new BigDecimal("200.000000"), new BigDecimal("398.00"))
         );
     }
 
@@ -119,12 +125,35 @@ class PortfolioSummaryServiceTest {
         // 12 shares * market close 140 - total fees 3
         assertThat(snapshot.positions()).containsExactly(new PositionValue(
                 "AAPL",
-                12L,
+                new BigDecimal("12"),
                 new BigDecimal("140.00"),
                 new BigDecimal("1677.00")
         ));
         assertThat(snapshot.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
         assertThat(snapshot.totalValue()).isEqualByComparingTo(new BigDecimal("1677.00"));
+    }
+
+    @Test
+    void dailySummary_returnsFractionalQuantitiesWithoutRounding() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "fractional-fixture.csv",
+                "text/csv",
+                (
+                        "trade_date,account,symbol,type,quantity,price,fee\n" +
+                        "2026-01-01,IRA,AAPL,BUY,1.25,100,1\n"
+                ).getBytes()
+        );
+        csvTransactionImportService.importCsv(file);
+
+        PortfolioSnapshot snapshot = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 1)).get(0);
+
+        assertThat(snapshot.positions()).containsExactly(new PositionValue(
+                "AAPL",
+                new BigDecimal("1.25"),
+                new BigDecimal("100.000000"),
+                new BigDecimal("124.00")
+        ));
     }
 
     @Test
@@ -161,13 +190,13 @@ class PortfolioSummaryServiceTest {
 
         assertThat(jan3.positions()).containsExactly(new PositionValue(
                 "AAPL",
-                10L,
+                new BigDecimal("10"),
                 new BigDecimal("120.000000"),
                 new BigDecimal("1199.00")
         ));
         assertThat(jan6.positions()).containsExactly(new PositionValue(
                 "AAPL",
-                10L,
+                new BigDecimal("10"),
                 new BigDecimal("140.000000"),
                 new BigDecimal("1399.00")
         ));
@@ -217,10 +246,46 @@ class PortfolioSummaryServiceTest {
         assertThat(snapshot.cashBalance()).isEqualByComparingTo(new BigDecimal("8949.00"));
         assertThat(snapshot.positions()).containsExactly(new PositionValue(
                 "AAPL",
-                10L,
+                new BigDecimal("10"),
                 new BigDecimal("100.000000"),
                 new BigDecimal("1000.00")
         ));
         assertThat(snapshot.totalValue()).isEqualByComparingTo(new BigDecimal("9949.00"));
+    }
+
+    @Test
+    void dailySummary_adjustsPreSplitTradesForStockSplits() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "split-fixture.csv",
+                "text/csv",
+                (
+                        "trade_date,account,symbol,type,quantity,price,fee\n" +
+                        "2026-01-01,IRA,KLAC,BUY,2,900,1\n"
+                ).getBytes()
+        );
+        csvTransactionImportService.importCsv(file);
+
+        StockSplitEntity split = new StockSplitEntity();
+        split.setSymbol("KLAC");
+        split.setSplitDate(LocalDate.of(2026, 2, 1));
+        split.setSplitRatio(new BigDecimal("10.000000"));
+        stockSplitRepository.save(split);
+
+        DailyClosePriceEntity afterSplitClose = new DailyClosePriceEntity();
+        afterSplitClose.setSymbol("KLAC");
+        afterSplitClose.setPriceDate(LocalDate.of(2026, 2, 2));
+        afterSplitClose.setClosePrice(new BigDecimal("90.00"));
+        dailyClosePriceRepository.save(afterSplitClose);
+
+        PortfolioSnapshot snapshot = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 2, 2)).get(0);
+
+        assertThat(snapshot.positions()).containsExactly(new PositionValue(
+                "KLAC",
+                new BigDecimal("20"),
+                new BigDecimal("90.000000"),
+                new BigDecimal("1799.00")
+        ));
+        assertThat(snapshot.totalValue()).isEqualByComparingTo("1799.00");
     }
 }

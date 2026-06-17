@@ -44,6 +44,7 @@ public class AlphaVantageDailySeriesClient implements DailySeriesClient {
     private static final String RESILIENCE_INSTANCE_NAME = "alphaVantageDailySeries";
     private static final String TIME_SERIES_KEY = "Time Series (Daily)";
     private static final String DAILY_CLOSE_KEY = "4. close";
+    private static final String SPLIT_COEFFICIENT_KEY = "8. split coefficient";
 
     private final PricingProperties pricingProperties;
     private final HttpClient httpClient;
@@ -181,7 +182,7 @@ public class AlphaVantageDailySeriesClient implements DailySeriesClient {
                         "Price series API temporarily rate limited for symbol " + symbol + "."
                 );
             }
-            return new SeriesFetchResult(seriesResponse.series(), seriesResponse.status());
+            return new SeriesFetchResult(seriesResponse.series(), seriesResponse.splitCoefficients(), seriesResponse.status());
         } catch (IOException e) {
             throw new RetryableSeriesFetchException(SeriesFetchStatus.API_ERROR, "I/O failure when fetching daily series for symbol " + symbol + ".", e);
         } catch (InterruptedException e) {
@@ -258,24 +259,39 @@ public class AlphaVantageDailySeriesClient implements DailySeriesClient {
             }
 
             Map<LocalDate, BigDecimal> result = new HashMap<>();
+            Map<LocalDate, BigDecimal> splitCoefficients = new HashMap<>();
             Iterator<Map.Entry<String, JsonNode>> fields = dailySeries.fields();
             while (fields.hasNext()) {
                 Map.Entry<String, JsonNode> entry = fields.next();
                 LocalDate date = LocalDate.parse(entry.getKey());
                 JsonNode closeNode = entry.getValue().path(DAILY_CLOSE_KEY);
-                if (closeNode.isMissingNode()) {
-                    continue;
+                if (!closeNode.isMissingNode()) {
+                    result.put(date, new BigDecimal(closeNode.asText()));
                 }
-                result.put(date, new BigDecimal(closeNode.asText()));
+                JsonNode splitNode = entry.getValue().path(SPLIT_COEFFICIENT_KEY);
+                if (!splitNode.isMissingNode()) {
+                    BigDecimal splitCoefficient = new BigDecimal(splitNode.asText());
+                    if (splitCoefficient.compareTo(BigDecimal.ONE) != 0) {
+                        splitCoefficients.put(date, splitCoefficient);
+                    }
+                }
             }
-            return new SeriesResponse(result, false, SeriesFetchStatus.SUCCESS);
+            return new SeriesResponse(result, splitCoefficients, false, SeriesFetchStatus.SUCCESS);
         } catch (IOException e) {
             log.warn("Unable to parse price series response for symbol {}.", symbol, e);
             return new SeriesResponse(Map.of(), false, SeriesFetchStatus.API_ERROR);
         }
     }
 
-    private record SeriesResponse(Map<LocalDate, BigDecimal> series, boolean retryableRateLimit, SeriesFetchStatus status) {
+    private record SeriesResponse(
+            Map<LocalDate, BigDecimal> series,
+            Map<LocalDate, BigDecimal> splitCoefficients,
+            boolean retryableRateLimit,
+            SeriesFetchStatus status
+    ) {
+        private SeriesResponse(Map<LocalDate, BigDecimal> series, boolean retryableRateLimit, SeriesFetchStatus status) {
+            this(series, Map.of(), retryableRateLimit, status);
+        }
     }
 
     private static final class RetryableSeriesFetchException extends RuntimeException {

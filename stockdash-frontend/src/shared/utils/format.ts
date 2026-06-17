@@ -9,6 +9,11 @@ export const percent = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2
 });
 
+export const quantity = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 6
+});
+
 export function todayIso(): string {
   const date = new Date();
   const year = date.getFullYear();

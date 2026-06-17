@@ -1,10 +1,12 @@
 package com.temadison.stockdash.backend.service;
 
+import com.temadison.stockdash.backend.domain.StockSplitEntity;
 import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
 import com.temadison.stockdash.backend.model.PortfolioSnapshot;
 import com.temadison.stockdash.backend.model.PositionValue;
 import com.temadison.stockdash.backend.pricing.MarketPriceService;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
+import com.temadison.stockdash.backend.repository.StockSplitRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import com.temadison.stockdash.backend.service.support.PositionAccumulator;
 import org.springframework.stereotype.Service;
@@ -16,24 +18,30 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class PortfolioSummaryService implements PortfolioSummaryQueryService {
 
     private final TradeTransactionRepository tradeTransactionRepository;
     private final DailyClosePriceRepository dailyClosePriceRepository;
+    private final StockSplitRepository stockSplitRepository;
     private final MarketPriceService marketPriceService;
 
     public PortfolioSummaryService(
             TradeTransactionRepository tradeTransactionRepository,
             DailyClosePriceRepository dailyClosePriceRepository,
+            StockSplitRepository stockSplitRepository,
             MarketPriceService marketPriceService
     ) {
         this.tradeTransactionRepository = tradeTransactionRepository;
         this.dailyClosePriceRepository = dailyClosePriceRepository;
+        this.stockSplitRepository = stockSplitRepository;
         this.marketPriceService = marketPriceService;
     }
 
@@ -42,6 +50,7 @@ public class PortfolioSummaryService implements PortfolioSummaryQueryService {
     public List<PortfolioSnapshot> getDailySummary(LocalDate asOfDate) {
         List<TradeTransactionEntity> transactions = tradeTransactionRepository
                 .findByTradeDateLessThanEqualOrderByTradeDateAscIdAsc(asOfDate);
+        Map<String, List<StockSplitEntity>> splitsBySymbol = splitsBySymbol(transactions, asOfDate);
 
         Map<String, Boolean> tracksCashByAccount = new HashMap<>();
         for (TradeTransactionEntity transaction : transactions) {
@@ -57,7 +66,7 @@ public class PortfolioSummaryService implements PortfolioSummaryQueryService {
                     accountName,
                     ignored -> new AccountSummaryAccumulator(Boolean.TRUE.equals(tracksCashByAccount.get(accountName)))
             );
-            account.apply(transaction);
+            account.apply(transaction, splitsBySymbol, asOfDate);
         }
 
         Map<String, BigDecimal> closePriceBySymbol = new HashMap<>();
@@ -86,7 +95,7 @@ public class PortfolioSummaryService implements PortfolioSummaryQueryService {
                                 .multiply(closePrice)
                                 .subtract(account.tracksCash() ? BigDecimal.ZERO : acc.totalFees())
                                 .setScale(2, RoundingMode.HALF_UP);
-                        return new PositionValue(entry.getKey(), acc.netQuantity().longValueExact(), closePrice, positionValue);
+                        return new PositionValue(entry.getKey(), displayQuantity(acc.netQuantity()), closePrice, positionValue);
                     })
                     .filter(position -> position != null)
                     .sorted(Comparator.comparing(PositionValue::symbol))
@@ -120,10 +129,14 @@ public class PortfolioSummaryService implements PortfolioSummaryQueryService {
             this.tracksCash = tracksCash;
         }
 
-        private void apply(TradeTransactionEntity transaction) {
+        private void apply(
+                TradeTransactionEntity transaction,
+                Map<String, List<StockSplitEntity>> splitsBySymbol,
+                LocalDate asOfDate
+        ) {
             if (transaction.getType().isSecurityTrade()) {
                 PositionAccumulator accumulator = positions.computeIfAbsent(transaction.getSymbol(), ignored -> new PositionAccumulator());
-                accumulator.apply(transaction);
+                accumulator.apply(transaction, splitFactor(transaction, splitsBySymbol, asOfDate));
             }
 
             if (tracksCash) {
@@ -147,6 +160,44 @@ public class PortfolioSummaryService implements PortfolioSummaryQueryService {
         private BigDecimal cashBalance() {
             return tracksCash ? cashBalance : BigDecimal.ZERO;
         }
+    }
+
+    private Map<String, List<StockSplitEntity>> splitsBySymbol(
+            List<TradeTransactionEntity> transactions,
+            LocalDate asOfDate
+    ) {
+        Set<String> symbols = transactions.stream()
+                .filter(transaction -> transaction.getType().isSecurityTrade())
+                .map(TradeTransactionEntity::getSymbol)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (symbols.isEmpty()) {
+            return Map.of();
+        }
+        return stockSplitRepository.findBySymbolInAndSplitDateLessThanEqualOrderBySymbolAscSplitDateAsc(symbols, asOfDate)
+                .stream()
+                .collect(Collectors.groupingBy(StockSplitEntity::getSymbol));
+    }
+
+    private static BigDecimal splitFactor(
+            TradeTransactionEntity transaction,
+            Map<String, List<StockSplitEntity>> splitsBySymbol,
+            LocalDate asOfDate
+    ) {
+        BigDecimal factor = BigDecimal.ONE;
+        for (StockSplitEntity split : splitsBySymbol.getOrDefault(transaction.getSymbol(), List.of())) {
+            if (split.getSplitDate().isAfter(transaction.getTradeDate()) && !split.getSplitDate().isAfter(asOfDate)) {
+                factor = factor.multiply(split.getSplitRatio());
+            }
+        }
+        return factor;
+    }
+
+    private static BigDecimal displayQuantity(BigDecimal quantity) {
+        BigDecimal normalized = quantity.stripTrailingZeros();
+        if (normalized.scale() < 0) {
+            return normalized.setScale(0);
+        }
+        return normalized;
     }
 
 }

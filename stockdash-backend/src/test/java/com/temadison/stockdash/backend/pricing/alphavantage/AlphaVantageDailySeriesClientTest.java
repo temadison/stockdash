@@ -126,6 +126,73 @@ class AlphaVantageDailySeriesClientTest {
     }
 
     @Test
+    void parsesSplitCoefficientsWhenPresentInDailyPayload() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        AlphaVantageRequestLimiter requestLimiter = mock(AlphaVantageRequestLimiter.class);
+        doReturn(false).when(requestLimiter).isDailyLimitReached();
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> dailyResponse = (HttpResponse<String>) mock(HttpResponse.class);
+        when(dailyResponse.statusCode()).thenReturn(200);
+        when(dailyResponse.body()).thenReturn("""
+                {
+                  "Time Series (Daily)": {
+                    "2026-02-02": {"4. close": "90.00", "8. split coefficient": "1.0"},
+                    "2026-02-01": {"4. close": "89.50", "8. split coefficient": "10.0"}
+                  }
+                }
+                """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(dailyResponse);
+
+        AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                requestLimiter,
+                httpClient,
+                retry(1),
+                circuitBreaker(50.0f, 10, 5),
+                timeLimiter(1)
+        );
+
+        SeriesFetchResult result = client.fetchDailyCloseSeries("KLAC");
+
+        assertThat(result.series()).containsEntry(LocalDate.of(2026, 2, 1), new java.math.BigDecimal("89.50"));
+        assertThat(result.splitCoefficients()).containsEntry(LocalDate.of(2026, 2, 1), new java.math.BigDecimal("10.0"));
+        assertThat(result.splitCoefficients()).doesNotContainKey(LocalDate.of(2026, 2, 2));
+    }
+
+    @Test
+    void usesDailyEndpointOnly() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        AlphaVantageRequestLimiter requestLimiter = mock(AlphaVantageRequestLimiter.class);
+        doReturn(false).when(requestLimiter).isDailyLimitReached();
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> response = (HttpResponse<String>) mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+                {"Time Series (Daily)": {}}
+                """);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        AlphaVantageDailySeriesClient client = new AlphaVantageDailySeriesClient(
+                new PricingProperties("test-key", "https://example.com/query", "compact", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+                requestLimiter,
+                httpClient,
+                retry(1),
+                circuitBreaker(50.0f, 10, 5),
+                timeLimiter(1)
+        );
+
+        client.fetchDailyCloseSeries("KLAC");
+
+        org.mockito.ArgumentCaptor<HttpRequest> requestCaptor = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient, times(1)).send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(requestCaptor.getValue().uri().toString()).contains("function=TIME_SERIES_DAILY");
+        assertThat(requestCaptor.getValue().uri().toString()).doesNotContain("function=SPLITS");
+    }
+
+
+    @Test
     void returnsRateLimitedForNotePayload() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         AlphaVantageRequestLimiter requestLimiter = mock(AlphaVantageRequestLimiter.class);

@@ -8,9 +8,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class AlphaVantageRequestLimiter {
 
-    private static final long MIN_REQUEST_SPACING_MS = 1800L;
+    private static final long MIN_REQUEST_SPACING_MS = 1_800L;
     private static final String DAILY_LIMIT_HINT_A = "25 requests per day";
-    private static final String DAILY_LIMIT_HINT_B = "daily rate limit";
+    private static final String DAILY_LIMIT_HINT_B = "25 calls per day";
+    private static final String DAILY_LIMIT_HINT_C = "daily rate limit";
 
     private long lastRequestEpochMs;
     private LocalDate dailyLimitReachedOn;
@@ -50,7 +51,9 @@ public class AlphaVantageRequestLimiter {
             return false;
         }
         String normalized = message.toLowerCase();
-        return normalized.contains(DAILY_LIMIT_HINT_A) || normalized.contains(DAILY_LIMIT_HINT_B);
+        return normalized.contains(DAILY_LIMIT_HINT_A)
+                || normalized.contains(DAILY_LIMIT_HINT_B)
+                || normalized.contains(DAILY_LIMIT_HINT_C);
     }
 
     public synchronized void awaitTurn() throws InterruptedException {

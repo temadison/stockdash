@@ -1,6 +1,7 @@
 package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.domain.DailyClosePriceEntity;
+import com.temadison.stockdash.backend.domain.StockSplitEntity;
 import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
 import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.model.PriceSyncResult;
@@ -9,6 +10,7 @@ import com.temadison.stockdash.backend.pricing.alphavantage.DailySeriesClient;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchResult;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchStatus;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
+import com.temadison.stockdash.backend.repository.StockSplitRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +35,7 @@ public class DailyClosePriceSyncService implements PriceSyncService {
 
     private final TradeTransactionRepository tradeTransactionRepository;
     private final DailyClosePriceRepository dailyClosePriceRepository;
+    private final StockSplitRepository stockSplitRepository;
     private final DailySeriesClient dailySeriesClient;
     private final DailyClosePriceFallbackService dailyClosePriceFallbackService;
     private final boolean localFallbackEnabled;
@@ -42,6 +45,7 @@ public class DailyClosePriceSyncService implements PriceSyncService {
     public DailyClosePriceSyncService(
             TradeTransactionRepository tradeTransactionRepository,
             DailyClosePriceRepository dailyClosePriceRepository,
+            StockSplitRepository stockSplitRepository,
             DailySeriesClient dailySeriesClient,
             DailyClosePriceFallbackService dailyClosePriceFallbackService,
             @Value("${stockdash.pricing.local-fallback-enabled:false}") boolean localFallbackEnabled,
@@ -49,6 +53,7 @@ public class DailyClosePriceSyncService implements PriceSyncService {
     ) {
         this.tradeTransactionRepository = tradeTransactionRepository;
         this.dailyClosePriceRepository = dailyClosePriceRepository;
+        this.stockSplitRepository = stockSplitRepository;
         this.dailySeriesClient = dailySeriesClient;
         this.dailyClosePriceFallbackService = dailyClosePriceFallbackService;
         this.localFallbackEnabled = localFallbackEnabled;
@@ -84,9 +89,11 @@ public class DailyClosePriceSyncService implements PriceSyncService {
 
                 SeriesFetchResult fetchResult = dailySeriesClient.fetchDailyCloseSeries(symbol);
                 Map<LocalDate, BigDecimal> dailySeries = fetchResult.series();
+                Map<LocalDate, BigDecimal> splitCoefficients = fetchResult.splitCoefficients();
                 boolean usedLocalFallback = false;
                 if (dailySeries.isEmpty() && shouldUseLocalFallback(fetchResult.status())) {
                     dailySeries = dailyClosePriceFallbackService.generateSeries(symbol, firstBuyDate, localFallbackLookbackDays);
+                    splitCoefficients = Map.of();
                     usedLocalFallback = !dailySeries.isEmpty();
                 }
                 if (dailySeries.isEmpty()) {
@@ -120,6 +127,7 @@ public class DailyClosePriceSyncService implements PriceSyncService {
 
                 int inserted = saveIgnoringDuplicates(symbol, toSave);
                 int refreshedExisting = refreshExistingCloses(symbol, existingByDate, dailySeries);
+                saveOrRefreshSplits(symbol, firstBuyDate, splitCoefficients);
                 int changedRows = inserted + refreshedExisting;
                 storedBySymbol.put(symbol, changedRows);
                 statusBySymbol.put(symbol, statusForPersistResult(inserted, refreshedExisting, usedLocalFallback));
@@ -254,5 +262,28 @@ public class DailyClosePriceSyncService implements PriceSyncService {
             log.debug("Refreshed {} existing close prices for {}.", refreshed, symbol);
         }
         return refreshed;
+    }
+
+    private void saveOrRefreshSplits(
+            String symbol,
+            LocalDate firstBuyDate,
+            Map<LocalDate, BigDecimal> splitCoefficients
+    ) {
+        for (Map.Entry<LocalDate, BigDecimal> entry : splitCoefficients.entrySet()) {
+            LocalDate splitDate = entry.getKey();
+            if (splitDate.isBefore(firstBuyDate)) {
+                continue;
+            }
+            BigDecimal splitRatio = entry.getValue();
+            if (splitRatio.compareTo(BigDecimal.ONE) == 0) {
+                continue;
+            }
+            StockSplitEntity split = stockSplitRepository.findBySymbolAndSplitDate(symbol, splitDate)
+                    .orElseGet(StockSplitEntity::new);
+            split.setSymbol(symbol);
+            split.setSplitDate(splitDate);
+            split.setSplitRatio(splitRatio);
+            stockSplitRepository.save(split);
+        }
     }
 }

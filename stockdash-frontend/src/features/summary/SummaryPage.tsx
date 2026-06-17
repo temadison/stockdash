@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { PortfolioSnapshotDto } from '../../shared/types/api';
 import { getDailySummary } from '../../shared/api/portfolioApi';
-import { money, todayIso } from '../../shared/utils/format';
+import { money, quantity, todayIso } from '../../shared/utils/format';
 import { PageShell } from '../../shared/ui/PageShell';
 import { UploadPanel } from '../upload/UploadPanel';
 import { SyncPanel } from '../sync/SyncPanel';
@@ -88,7 +88,7 @@ export function SummaryPage() {
                     <td>
                       <Link to={`/history?symbol=${encodeURIComponent(position.symbol)}`}>{position.symbol}</Link>
                     </td>
-                    <td>{position.quantity}</td>
+                    <td>{quantity.format(position.quantity)}</td>
                     <td>{money.format(position.currentPrice)}</td>
                     <td>{money.format(position.marketValue)}</td>
                   </tr>

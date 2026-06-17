@@ -6,6 +6,7 @@ import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchResult;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchStatus;
 import com.temadison.stockdash.backend.repository.AccountRepository;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
+import com.temadison.stockdash.backend.repository.StockSplitRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import com.temadison.stockdash.backend.support.MySqlContainerBaseIT;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +35,9 @@ class DailyClosePriceSyncServiceIT extends MySqlContainerBaseIT {
     private DailyClosePriceRepository dailyClosePriceRepository;
 
     @Autowired
+    private StockSplitRepository stockSplitRepository;
+
+    @Autowired
     private TradeTransactionRepository tradeTransactionRepository;
 
     @Autowired
@@ -44,6 +48,7 @@ class DailyClosePriceSyncServiceIT extends MySqlContainerBaseIT {
 
     @BeforeEach
     void setUp() {
+        stockSplitRepository.deleteAll();
         dailyClosePriceRepository.deleteAll();
         tradeTransactionRepository.deleteAll();
         accountRepository.deleteAll();

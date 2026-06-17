@@ -2,5 +2,5 @@ package com.temadison.stockdash.backend.model;
 
 import java.math.BigDecimal;
 
-public record PositionValue(String symbol, long quantity, BigDecimal currentPrice, BigDecimal marketValue) {
+public record PositionValue(String symbol, BigDecimal quantity, BigDecimal currentPrice, BigDecimal marketValue) {
 }

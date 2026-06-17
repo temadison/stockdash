@@ -6,6 +6,7 @@ import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchResult;
 import com.temadison.stockdash.backend.pricing.alphavantage.SeriesFetchStatus;
 import com.temadison.stockdash.backend.repository.AccountRepository;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
+import com.temadison.stockdash.backend.repository.StockSplitRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,9 @@ class DailyClosePriceSyncServiceTest {
     private DailyClosePriceRepository dailyClosePriceRepository;
 
     @Autowired
+    private StockSplitRepository stockSplitRepository;
+
+    @Autowired
     private TradeTransactionRepository tradeTransactionRepository;
 
     @Autowired
@@ -45,6 +49,7 @@ class DailyClosePriceSyncServiceTest {
 
     @BeforeEach
     void setUp() {
+        stockSplitRepository.deleteAll();
         dailyClosePriceRepository.deleteAll();
         tradeTransactionRepository.deleteAll();
         accountRepository.deleteAll();
@@ -70,6 +75,8 @@ class DailyClosePriceSyncServiceTest {
                 LocalDate.of(2026, 1, 1), new BigDecimal("100.00"),
                 LocalDate.of(2026, 1, 2), new BigDecimal("101.00"),
                 LocalDate.of(2026, 1, 9), new BigDecimal("109.00")
+        ), Map.of(
+                LocalDate.of(2026, 1, 7), new BigDecimal("10.000000")
         ), SeriesFetchStatus.SUCCESS));
         given(dailySeriesClient.fetchDailyCloseSeries("MSFT")).willReturn(new SeriesFetchResult(Map.of(
                 LocalDate.of(2026, 1, 4), new BigDecimal("198.00"),
@@ -104,6 +111,12 @@ class DailyClosePriceSyncServiceTest {
         assertThat(dailyClosePriceRepository.findBySymbolOrderByPriceDateAsc("MSFT"))
                 .extracting(price -> price.getPriceDate().toString())
                 .containsExactly("2026-01-05", "2026-01-06");
+        assertThat(stockSplitRepository.findBySymbolAndSplitDate("AAPL", LocalDate.of(2026, 1, 7)))
+                .isPresent()
+                .get()
+                .extracting(split -> split.getSplitRatio())
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.BIG_DECIMAL)
+                .isEqualByComparingTo("10.000000");
     }
 
     @Test

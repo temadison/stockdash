@@ -1,11 +1,13 @@
 package com.temadison.stockdash.backend.service;
 
 import com.temadison.stockdash.backend.domain.DailyClosePriceEntity;
+import com.temadison.stockdash.backend.domain.StockSplitEntity;
 import com.temadison.stockdash.backend.domain.TradeTransactionEntity;
 import com.temadison.stockdash.backend.domain.TransactionType;
 import com.temadison.stockdash.backend.model.PortfolioPerformancePoint;
 import com.temadison.stockdash.backend.model.StockPerformanceValue;
 import com.temadison.stockdash.backend.repository.DailyClosePriceRepository;
+import com.temadison.stockdash.backend.repository.StockSplitRepository;
 import com.temadison.stockdash.backend.repository.TradeTransactionRepository;
 import com.temadison.stockdash.backend.service.support.PositionAccumulator;
 import org.springframework.stereotype.Service;
@@ -25,13 +27,16 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
 
     private final TradeTransactionRepository tradeTransactionRepository;
     private final DailyClosePriceRepository dailyClosePriceRepository;
+    private final StockSplitRepository stockSplitRepository;
 
     public PortfolioPerformanceService(
             TradeTransactionRepository tradeTransactionRepository,
-            DailyClosePriceRepository dailyClosePriceRepository
+            DailyClosePriceRepository dailyClosePriceRepository,
+            StockSplitRepository stockSplitRepository
     ) {
         this.tradeTransactionRepository = tradeTransactionRepository;
         this.dailyClosePriceRepository = dailyClosePriceRepository;
+        this.stockSplitRepository = stockSplitRepository;
     }
 
     @Override
@@ -50,7 +55,9 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
         }
 
         Map<String, List<DailyClosePriceEntity>> closesBySymbol = preloadClosesBySymbol(transactions, resolvedEnd);
+        Map<String, List<StockSplitEntity>> splitsBySymbol = preloadSplitsBySymbol(transactions, resolvedEnd);
         Map<String, Integer> closeCursorBySymbol = new HashMap<>();
+        Map<String, Integer> splitCursorBySymbol = new HashMap<>();
         Map<String, BigDecimal> latestCloseBySymbol = new HashMap<>();
         Map<String, Boolean> tracksCashByAccount = new HashMap<>();
         for (TradeTransactionEntity transaction : transactions) {
@@ -65,7 +72,9 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
         BigDecimal netAmountSpent = BigDecimal.ZERO;
         List<PortfolioPerformancePoint> points = new ArrayList<>();
 
-        for (LocalDate day = resolvedStart; !day.isAfter(resolvedEnd); day = day.plusDays(1)) {
+        for (LocalDate day = earliestTradeDate; !day.isAfter(resolvedEnd); day = day.plusDays(1)) {
+            applySplitsForDay(day, positionsByAccount, splitsBySymbol, splitCursorBySymbol);
+
             while (txIndex < transactions.size() && !transactions.get(txIndex).getTradeDate().isAfter(day)) {
                 TradeTransactionEntity tx = transactions.get(txIndex);
                 BigDecimal gross = tx.getQuantity().multiply(tx.getPrice());
@@ -134,6 +143,10 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
                     .reduce(BigDecimal.ZERO, BigDecimal::add)
                     .setScale(2, RoundingMode.HALF_UP);
 
+            if (day.isBefore(resolvedStart)) {
+                continue;
+            }
+
             List<StockPerformanceValue> stocks = stockValueBySymbol.entrySet().stream()
                     .map(entry -> new StockPerformanceValue(entry.getKey(), entry.getValue().setScale(2, RoundingMode.HALF_UP)))
                     .sorted(Comparator.comparing(StockPerformanceValue::symbol))
@@ -172,6 +185,43 @@ public class PortfolioPerformanceService implements PortfolioPerformanceQuerySer
                                 .toList()
                 ));
         return closesBySymbol;
+    }
+
+    private Map<String, List<StockSplitEntity>> preloadSplitsBySymbol(List<TradeTransactionEntity> transactions, LocalDate endDate) {
+        Map<String, List<StockSplitEntity>> splitsBySymbol = new HashMap<>();
+        transactions.stream()
+                .filter(transaction -> transaction.getType().isSecurityTrade())
+                .map(TradeTransactionEntity::getSymbol)
+                .distinct()
+                .forEach(symbol -> splitsBySymbol.put(
+                        symbol,
+                        stockSplitRepository.findBySymbolAndSplitDateLessThanEqualOrderBySplitDateAsc(symbol, endDate)
+                ));
+        return splitsBySymbol;
+    }
+
+    private void applySplitsForDay(
+            LocalDate day,
+            Map<String, Map<String, PositionAccumulator>> positionsByAccount,
+            Map<String, List<StockSplitEntity>> splitsBySymbol,
+            Map<String, Integer> splitCursorBySymbol
+    ) {
+        for (Map.Entry<String, List<StockSplitEntity>> splitEntry : splitsBySymbol.entrySet()) {
+            String symbol = splitEntry.getKey();
+            List<StockSplitEntity> splits = splitEntry.getValue();
+            int cursor = splitCursorBySymbol.getOrDefault(symbol, 0);
+            while (cursor < splits.size() && !splits.get(cursor).getSplitDate().isAfter(day)) {
+                BigDecimal splitRatio = splits.get(cursor).getSplitRatio();
+                for (Map<String, PositionAccumulator> positions : positionsByAccount.values()) {
+                    PositionAccumulator accumulator = positions.get(symbol);
+                    if (accumulator != null) {
+                        accumulator.applySplit(splitRatio);
+                    }
+                }
+                cursor++;
+            }
+            splitCursorBySymbol.put(symbol, cursor);
+        }
     }
 
     private BigDecimal closeOnOrBefore(

@@ -15,6 +15,7 @@ class AlphaVantageRequestLimiterTest {
         AlphaVantageRequestLimiter limiter = new AlphaVantageRequestLimiter();
 
         limiter.recordRateLimitMessage("Standard API rate limit is 25 requests per day.");
+        limiter.recordRateLimitMessage("standard API call frequency is 5 calls per minute and 25 calls per day");
 
         assertThat(limiter.isDailyLimitReached()).isTrue();
     }
@@ -53,7 +54,7 @@ class AlphaVantageRequestLimiterTest {
     @Test
     void enforcesMinimumSpacingBetweenRequests() throws Exception {
         AlphaVantageRequestLimiter limiter = new AlphaVantageRequestLimiter();
-        setLongField(limiter, "lastRequestEpochMs", System.currentTimeMillis() - 1790L);
+        setLongField(limiter, "lastRequestEpochMs", System.currentTimeMillis() - 1_790L);
 
         long started = System.currentTimeMillis();
         limiter.awaitTurn();
