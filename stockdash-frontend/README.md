@@ -26,6 +26,10 @@ npm run build
 npm run preview
 ```
 
+## Summary Page
+
+The summary page loads account snapshots from `/api/portfolio/daily-summary` and whole-portfolio performance through `/api/portfolio/performance`. It displays total portfolio net gain/loss, return, and CAGR above the account list for the selected as-of date.
+
 ## Structure
 
 - `src/app`: app shell, router, global styles
