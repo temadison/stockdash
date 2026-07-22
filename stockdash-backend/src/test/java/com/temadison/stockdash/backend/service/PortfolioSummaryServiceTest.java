@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -82,12 +83,9 @@ class PortfolioSummaryServiceTest {
         assertThat(snapshotBefore.accountName()).isEqualTo("IRA");
         assertThat(snapshotBefore.totalValue()).isEqualByComparingTo(new BigDecimal("1798.00"));
         assertThat(snapshotBefore.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
-        assertThat(snapshotBefore.positions()).containsExactly(new PositionValue(
-                "AAPL",
-                new BigDecimal("15"),
-                new BigDecimal("120.000000"),
-                new BigDecimal("1798.00")
-        ));
+        assertThat(snapshotBefore.positions())
+                .extracting(PositionValue::symbol, PositionValue::quantity, PositionValue::currentPrice, PositionValue::marketValue)
+                .containsExactly(tuple("AAPL", new BigDecimal("15"), new BigDecimal("120.000000"), new BigDecimal("1798.00")));
 
         List<PortfolioSnapshot> afterAllTrades = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 15));
         assertThat(afterAllTrades).hasSize(1);
@@ -95,10 +93,17 @@ class PortfolioSummaryServiceTest {
         PortfolioSnapshot snapshotAfter = afterAllTrades.get(0);
         assertThat(snapshotAfter.totalValue()).isEqualByComparingTo(new BigDecimal("1955.00"));
         assertThat(snapshotAfter.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
-        assertThat(snapshotAfter.positions()).containsExactly(
-                new PositionValue("AAPL", new BigDecimal("12"), new BigDecimal("130.000000"), new BigDecimal("1557.00")),
-                new PositionValue("MSFT", new BigDecimal("2"), new BigDecimal("200.000000"), new BigDecimal("398.00"))
-        );
+        assertThat(snapshotAfter.positions())
+                .extracting(PositionValue::symbol, PositionValue::quantity, PositionValue::currentPrice, PositionValue::marketValue)
+                .containsExactly(
+                        tuple("AAPL", new BigDecimal("12"), new BigDecimal("130.000000"), new BigDecimal("1557.00")),
+                        tuple("MSFT", new BigDecimal("2"), new BigDecimal("200.000000"), new BigDecimal("398.00"))
+                );
+        PositionValue aapl = snapshotAfter.positions().get(0);
+        assertThat(aapl.costBasis()).isEqualByComparingTo("1281.60");
+        assertThat(aapl.gainLoss()).isEqualByComparingTo("275.40");
+        assertThat(aapl.totalReturn()).isEqualByComparingTo("0.21488764");
+        assertThat(aapl.cagr()).isNotNull();
     }
 
     @Test
@@ -123,12 +128,9 @@ class PortfolioSummaryServiceTest {
         PortfolioSnapshot snapshot = snapshots.get(0);
 
         // 12 shares * market close 140 - total fees 3
-        assertThat(snapshot.positions()).containsExactly(new PositionValue(
-                "AAPL",
-                new BigDecimal("12"),
-                new BigDecimal("140.00"),
-                new BigDecimal("1677.00")
-        ));
+        assertThat(snapshot.positions())
+                .extracting(PositionValue::symbol, PositionValue::quantity, PositionValue::currentPrice, PositionValue::marketValue)
+                .containsExactly(tuple("AAPL", new BigDecimal("12"), new BigDecimal("140.00"), new BigDecimal("1677.00")));
         assertThat(snapshot.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
         assertThat(snapshot.totalValue()).isEqualByComparingTo(new BigDecimal("1677.00"));
     }
@@ -148,12 +150,9 @@ class PortfolioSummaryServiceTest {
 
         PortfolioSnapshot snapshot = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 1)).get(0);
 
-        assertThat(snapshot.positions()).containsExactly(new PositionValue(
-                "AAPL",
-                new BigDecimal("1.25"),
-                new BigDecimal("100.000000"),
-                new BigDecimal("124.00")
-        ));
+        assertThat(snapshot.positions())
+                .extracting(PositionValue::symbol, PositionValue::quantity, PositionValue::currentPrice, PositionValue::marketValue)
+                .containsExactly(tuple("AAPL", new BigDecimal("1.25"), new BigDecimal("100.000000"), new BigDecimal("124.00")));
     }
 
     @Test
@@ -188,18 +187,12 @@ class PortfolioSummaryServiceTest {
         PortfolioSnapshot jan3 = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 3)).get(0);
         PortfolioSnapshot jan6 = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 6)).get(0);
 
-        assertThat(jan3.positions()).containsExactly(new PositionValue(
-                "AAPL",
-                new BigDecimal("10"),
-                new BigDecimal("120.000000"),
-                new BigDecimal("1199.00")
-        ));
-        assertThat(jan6.positions()).containsExactly(new PositionValue(
-                "AAPL",
-                new BigDecimal("10"),
-                new BigDecimal("140.000000"),
-                new BigDecimal("1399.00")
-        ));
+        assertThat(jan3.positions())
+                .extracting(PositionValue::symbol, PositionValue::quantity, PositionValue::currentPrice, PositionValue::marketValue)
+                .containsExactly(tuple("AAPL", new BigDecimal("10"), new BigDecimal("120.000000"), new BigDecimal("1199.00")));
+        assertThat(jan6.positions())
+                .extracting(PositionValue::symbol, PositionValue::quantity, PositionValue::currentPrice, PositionValue::marketValue)
+                .containsExactly(tuple("AAPL", new BigDecimal("10"), new BigDecimal("140.000000"), new BigDecimal("1399.00")));
         assertThat(jan3.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
         assertThat(jan6.cashBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
     }
@@ -244,12 +237,9 @@ class PortfolioSummaryServiceTest {
         PortfolioSnapshot snapshot = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 1, 4)).get(0);
 
         assertThat(snapshot.cashBalance()).isEqualByComparingTo(new BigDecimal("8949.00"));
-        assertThat(snapshot.positions()).containsExactly(new PositionValue(
-                "AAPL",
-                new BigDecimal("10"),
-                new BigDecimal("100.000000"),
-                new BigDecimal("1000.00")
-        ));
+        assertThat(snapshot.positions())
+                .extracting(PositionValue::symbol, PositionValue::quantity, PositionValue::currentPrice, PositionValue::marketValue)
+                .containsExactly(tuple("AAPL", new BigDecimal("10"), new BigDecimal("100.000000"), new BigDecimal("1000.00")));
         assertThat(snapshot.totalValue()).isEqualByComparingTo(new BigDecimal("9949.00"));
     }
 
@@ -280,12 +270,9 @@ class PortfolioSummaryServiceTest {
 
         PortfolioSnapshot snapshot = portfolioSummaryService.getDailySummary(LocalDate.of(2026, 2, 2)).get(0);
 
-        assertThat(snapshot.positions()).containsExactly(new PositionValue(
-                "KLAC",
-                new BigDecimal("20"),
-                new BigDecimal("90.000000"),
-                new BigDecimal("1799.00")
-        ));
+        assertThat(snapshot.positions())
+                .extracting(PositionValue::symbol, PositionValue::quantity, PositionValue::currentPrice, PositionValue::marketValue)
+                .containsExactly(tuple("KLAC", new BigDecimal("20"), new BigDecimal("90.000000"), new BigDecimal("1799.00")));
         assertThat(snapshot.totalValue()).isEqualByComparingTo("1799.00");
     }
 }

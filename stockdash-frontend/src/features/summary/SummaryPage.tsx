@@ -86,30 +86,29 @@ export function SummaryPage() {
       ) : null}
       {!error && snapshots.length > 0 ? <p className="muted">Showing as-of {loadedDate}.</p> : null}
 
-      {!error && latestPerformanceRow ? (
-        <div className="summary-grid">
-          <article className="summary-card">
-            <div className="summary-label">Net Gain/Loss</div>
-            <div className={`summary-value ${net >= 0 ? 'status-ok' : 'status-bad'}`}>
-              {signedMoney(net)}
-            </div>
-          </article>
-          <article className="summary-card">
-            <div className="summary-label">Return</div>
-            <div className={`summary-value ${(totalReturn ?? 0) >= 0 ? 'status-ok' : 'status-bad'}`}>
-              {signedPercent(totalReturn)}
-            </div>
-          </article>
-          <article className="summary-card">
-            <div className="summary-label">CAGR</div>
-            <div className={`summary-value ${(cagr ?? 0) >= 0 ? 'status-ok' : 'status-bad'}`}>
-              {signedPercent(cagr)}
-            </div>
-          </article>
-        </div>
-      ) : null}
-
       <div className="stack gap-md">
+        {!error && latestPerformanceRow ? (
+          <div className="summary-grid">
+            <article className="summary-card">
+              <div className="summary-label">Net Gain/Loss</div>
+              <div className={`summary-value ${net >= 0 ? 'status-ok' : 'status-bad'}`}>
+                {signedMoney(net)}
+              </div>
+            </article>
+            <article className="summary-card">
+              <div className="summary-label">Return</div>
+              <div className={`summary-value ${(totalReturn ?? 0) >= 0 ? 'status-ok' : 'status-bad'}`}>
+                {signedPercent(totalReturn)}
+              </div>
+            </article>
+            <article className="summary-card">
+              <div className="summary-label">CAGR</div>
+              <div className={`summary-value ${(cagr ?? 0) >= 0 ? 'status-ok' : 'status-bad'}`}>
+                {signedPercent(cagr)}
+              </div>
+            </article>
+          </div>
+        ) : null}
         {snapshots.map((snapshot) => (
           <article key={snapshot.accountName} className="card">
             <div className="inline spread">
@@ -129,7 +128,16 @@ export function SummaryPage() {
             </p>
             <table>
               <thead>
-                <tr><th>Symbol</th><th>Qty</th><th>Price</th><th>Value</th></tr>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Qty</th>
+                  <th>Price</th>
+                  <th>Value</th>
+                  <th>Cost Basis</th>
+                  <th>Gain/Loss</th>
+                  <th>Return</th>
+                  <th>CAGR</th>
+                </tr>
               </thead>
               <tbody>
                 {snapshot.positions.map((position) => (
@@ -140,6 +148,10 @@ export function SummaryPage() {
                     <td>{quantity.format(position.quantity)}</td>
                     <td>{money.format(position.currentPrice)}</td>
                     <td>{money.format(position.marketValue)}</td>
+                    <td>{money.format(position.costBasis)}</td>
+                    <td className={position.gainLoss >= 0 ? 'status-ok' : 'status-bad'}>{signedMoney(position.gainLoss)}</td>
+                    <td className={(position.totalReturn ?? 0) >= 0 ? 'status-ok' : 'status-bad'}>{signedPercent(position.totalReturn)}</td>
+                    <td className={(position.cagr ?? 0) >= 0 ? 'status-ok' : 'status-bad'}>{signedPercent(position.cagr)}</td>
                   </tr>
                 ))}
               </tbody>

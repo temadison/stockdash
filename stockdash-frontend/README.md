@@ -28,7 +28,7 @@ npm run preview
 
 ## Summary Page
 
-The summary page loads account snapshots from `/api/portfolio/daily-summary` and whole-portfolio performance through `/api/portfolio/performance`. It displays total portfolio net gain/loss, return, and CAGR above the account list for the selected as-of date.
+The summary page loads account snapshots from `/api/portfolio/daily-summary` and whole-portfolio performance through `/api/portfolio/performance`. It displays total portfolio net gain/loss, return, and CAGR above the account list for the selected as-of date, and each account position includes cost basis, gain/loss, return, and CAGR.
 
 ## Structure
 

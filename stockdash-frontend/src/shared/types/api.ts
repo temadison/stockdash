@@ -3,6 +3,10 @@ export type PositionValueDto = {
   quantity: number;
   currentPrice: number;
   marketValue: number;
+  costBasis: number;
+  gainLoss: number;
+  totalReturn: number | null;
+  cagr: number | null;
 };
 
 export type PortfolioSnapshotDto = {

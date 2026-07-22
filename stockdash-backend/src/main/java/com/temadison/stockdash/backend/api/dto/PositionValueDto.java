@@ -6,6 +6,10 @@ public record PositionValueDto(
         String symbol,
         BigDecimal quantity,
         BigDecimal currentPrice,
-        BigDecimal marketValue
+        BigDecimal marketValue,
+        BigDecimal costBasis,
+        BigDecimal gainLoss,
+        BigDecimal totalReturn,
+        BigDecimal cagr
 ) {
 }

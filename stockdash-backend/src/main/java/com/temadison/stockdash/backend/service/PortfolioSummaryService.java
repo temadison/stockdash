@@ -13,8 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -95,7 +97,18 @@ public class PortfolioSummaryService implements PortfolioSummaryQueryService {
                                 .multiply(closePrice)
                                 .subtract(account.tracksCash() ? BigDecimal.ZERO : acc.totalFees())
                                 .setScale(2, RoundingMode.HALF_UP);
-                        return new PositionValue(entry.getKey(), displayQuantity(acc.netQuantity()), closePrice, positionValue);
+                        BigDecimal costBasis = acc.costBasis().setScale(2, RoundingMode.HALF_UP);
+                        BigDecimal gainLoss = positionValue.subtract(costBasis).setScale(2, RoundingMode.HALF_UP);
+                        return new PositionValue(
+                                entry.getKey(),
+                                displayQuantity(acc.netQuantity()),
+                                closePrice,
+                                positionValue,
+                                costBasis,
+                                gainLoss,
+                                rateOfReturn(costBasis, positionValue),
+                                cagr(costBasis, positionValue, acc.firstAcquiredDate(), asOfDate)
+                        );
                     })
                     .filter(position -> position != null)
                     .sorted(Comparator.comparing(PositionValue::symbol))
@@ -118,6 +131,31 @@ public class PortfolioSummaryService implements PortfolioSummaryQueryService {
 
     private static BigDecimal grossAmount(TradeTransactionEntity transaction) {
         return transaction.getQuantity().multiply(transaction.getPrice());
+    }
+
+    private static BigDecimal rateOfReturn(BigDecimal costBasis, BigDecimal positionValue) {
+        if (costBasis.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        return positionValue.subtract(costBasis)
+                .divide(costBasis, 8, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal cagr(
+            BigDecimal costBasis,
+            BigDecimal positionValue,
+            LocalDate firstAcquiredDate,
+            LocalDate asOfDate
+    ) {
+        if (costBasis.compareTo(BigDecimal.ZERO) <= 0
+                || positionValue.compareTo(BigDecimal.ZERO) <= 0
+                || firstAcquiredDate == null
+                || !asOfDate.isAfter(firstAcquiredDate)) {
+            return null;
+        }
+        double years = ChronoUnit.DAYS.between(firstAcquiredDate, asOfDate) / 365.2425d;
+        double annualizedReturn = Math.pow(positionValue.divide(costBasis, MathContext.DECIMAL64).doubleValue(), 1d / years) - 1d;
+        return BigDecimal.valueOf(annualizedReturn).setScale(8, RoundingMode.HALF_UP);
     }
 
     private static final class AccountSummaryAccumulator {

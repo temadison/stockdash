@@ -59,7 +59,16 @@ public class PortfolioApiMapper {
     }
 
     private PositionValueDto toDto(PositionValue source) {
-        return new PositionValueDto(source.symbol(), source.quantity(), source.currentPrice(), source.marketValue());
+        return new PositionValueDto(
+                source.symbol(),
+                source.quantity(),
+                source.currentPrice(),
+                source.marketValue(),
+                source.costBasis(),
+                source.gainLoss(),
+                source.totalReturn(),
+                source.cagr()
+        );
     }
 
     private DailyClosePricePointDto toDto(DailyClosePricePoint source) {

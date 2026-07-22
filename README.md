@@ -129,7 +129,7 @@ View:
 ## What Works Right Now
 
 - `GET /actuator/health` -> service health check
-- `GET /api/portfolio/daily-summary?date=YYYY-MM-DD` -> transaction-based daily account summary (as-of date)
+- `GET /api/portfolio/daily-summary?date=YYYY-MM-DD` -> transaction-based daily account summary with per-position cost basis, gain/loss, return, and CAGR (as-of date)
 - `POST /api/portfolio/transactions/upload` -> upload buys/sells CSV (persists accounts + trades)
 - `POST /api/portfolio/prices/sync` -> pull/store daily closes for a `stocks` array (stores only dates after each symbol's first `BUY` trade date)
 - `GET /v3/api-docs` + `GET /swagger-ui/index.html` -> OpenAPI contract and interactive docs
