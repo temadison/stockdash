@@ -75,7 +75,7 @@ export function SummaryPage() {
           <UploadPanel onDone={() => load(date)} />
         </article>
         <article className="card">
-          <SyncPanel />
+          <SyncPanel onDone={() => load(date)} />
         </article>
       </div>
 

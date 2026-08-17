@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { getSymbols, syncPrices } from '../../shared/api/portfolioApi';
 import type { PriceSyncResultDto } from '../../shared/types/api';
 
-export function SyncPanel() {
+type SyncPanelProps = {
+  onDone?: () => void | Promise<void>;
+};
+
+export function SyncPanel({ onDone }: SyncPanelProps) {
   const [symbolsText, setSymbolsText] = useState('AAPL,MSFT');
   const [status, setStatus] = useState('');
   const [syncing, setSyncing] = useState(false);
@@ -39,6 +43,7 @@ export function SyncPanel() {
       setStatus(`Syncing ${stocks.length} symbol${stocks.length === 1 ? '' : 's'}...`);
       const syncResult = await syncPrices(stocks);
       setResult(syncResult);
+      await onDone?.();
       setStatus(
         syncResult.pricesStored > 0
           ? `Changed ${syncResult.pricesStored} close-price rows across ${syncResult.symbolsWithPurchases}/${syncResult.symbolsRequested} symbols.`
